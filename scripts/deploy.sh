@@ -5,6 +5,13 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Change to project root directory
+cd "$PROJECT_ROOT"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -156,9 +163,9 @@ if [ -n "$SUBSCRIPTION_ID" ]; then
     az account set --subscription "$SUBSCRIPTION_ID"
 fi
 
-# Display current subscription
-CURRENT_SUBSCRIPTION=$(az account show --query name -o tsv)
-print_info "Deploying to subscription: $CURRENT_SUBSCRIPTION"
+# Display current subscription and get details
+CURRENT_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
+CURRENT_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
 # Validate Bicep template
 print_info "Validating Bicep template..."
@@ -171,11 +178,38 @@ fi
 
 print_info "Bicep validation successful"
 
-# Get deployment location
+# Get deployment location and resource group
 LOCATION="australiaeast"
 LOCATION_ABBR="aue"
 DEPLOYMENT_NAME="marketingstory-${ENVIRONMENT}-$(date +%Y%m%d-%H%M%S)"
 RESOURCE_GROUP_NAME="rg-marketingstory-${ENVIRONMENT}-${LOCATION_ABBR}"
+
+# Final confirmation before deployment
+echo ""
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║                    DEPLOYMENT CONFIRMATION                     ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo ""
+print_info "Environment:      $ENVIRONMENT"
+print_info "Subscription:     $CURRENT_SUBSCRIPTION_NAME"
+print_info "Subscription ID:  $CURRENT_SUBSCRIPTION_ID"
+print_info "Resource Group:   $RESOURCE_GROUP_NAME"
+print_info "Location:         $LOCATION"
+echo ""
+print_warning "This deployment will create Azure resources and incur costs."
+echo ""
+read -p "Are you sure you want to proceed? (yes/no): " confirmation
+
+if [[ ! "$confirmation" =~ ^[Yy][Ee][Ss]$ ]]; then
+    print_info "Deployment cancelled by user"
+    exit 0
+fi
+
+echo ""
+print_info "Proceeding with deployment..."
+echo ""
+print_info "Proceeding with deployment..."
+echo ""
 
 # Check if resource group exists
 print_info "Checking if resource group exists: $RESOURCE_GROUP_NAME"
