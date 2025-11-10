@@ -80,6 +80,20 @@ var locationAbbr = 'aue' // Australia East
 
 // Environment-specific configurations
 var envConfig = {
+  sandbox: {
+    appServiceSku: 'B1'
+    postgresqlSku: 'Standard_B1ms'
+    postgresqlTier: 'Burstable'
+    postgresqlBackupRetention: 7
+    postgresqlGeoRedundantBackup: 'Disabled'
+    postgresqlHighAvailability: 'Disabled'
+    storageSku: 'Standard_LRS'
+    redisSku: 'Basic'
+    redisFamily: 'C'
+    redisCapacity: 0
+    gpt4Capacity: 10
+    logRetentionDays: 7
+  }
   dev: {
     appServiceSku: 'P1V3'
     postgresqlSku: 'Standard_B1ms'
