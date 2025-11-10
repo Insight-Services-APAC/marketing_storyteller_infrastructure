@@ -92,7 +92,7 @@ var envConfig = {
     redisFamily: 'C'
     redisCapacity: 0
     gpt4Capacity: 10
-    logRetentionDays: 7
+    logRetentionDays: 30  // Minimum allowed by Azure
   }
   dev: {
     appServiceSku: 'P1V3'
