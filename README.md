@@ -78,8 +78,16 @@ Low-cost personal development with public endpoints and Codespaces support:
 
 ```bash
 # Open in Codespaces (GitHub UI or VS Code)
+
+# Check resource group status
+./scripts/check-resource-group.sh sandbox
+
 # Deploy sandbox environment
 ./scripts/deploy.sh -e sandbox -p "YourPassword123!"
+# The script will prompt if resource group exists:
+#   1) Update existing deployment
+#   2) Delete and recreate (clean slate)
+#   3) Cancel
 ```
 
 **Benefits**:
@@ -89,6 +97,7 @@ Low-cost personal development with public endpoints and Codespaces support:
 - ✅ Low cost (~$64/month, within VS Enterprise credits)
 - ✅ Public endpoints with firewall rules and SSL
 - ✅ Perfect for personal Azure subscriptions
+- ✅ Resource group management built into deployment script
 
 See [`docs/setup/CODESPACES_SETUP.md`](docs/setup/CODESPACES_SETUP.md) for setup guide.
 
@@ -98,6 +107,11 @@ Production-like environment with private endpoints for team collaboration:
 
 ```bash
 # Requires VPN or Bastion access
+
+# Check resource group status
+./scripts/check-resource-group.sh dev
+
+# Deploy
 ./scripts/deploy.sh -e dev -p "YourPassword123!"
 ```
 

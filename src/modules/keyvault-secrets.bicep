@@ -36,12 +36,12 @@ param openAIDeploymentName string
 param additionalSecrets object = {}
 
 // Reference existing Key Vault
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   name: keyVaultName
 }
 
 // Core application secrets
-resource databaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource databaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'database-url'
   properties: {
@@ -50,7 +50,7 @@ resource databaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource redisUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource redisUrlSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'redis-url'
   properties: {
@@ -59,7 +59,7 @@ resource redisUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource storageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource storageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'storage-connection-string'
   properties: {
@@ -68,7 +68,7 @@ resource storageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-0
   }
 }
 
-resource openAIApiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource openAIApiKeySecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'openai-api-key'
   properties: {
@@ -77,7 +77,7 @@ resource openAIApiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource openAIEndpointSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource openAIEndpointSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'openai-endpoint'
   properties: {
@@ -86,7 +86,7 @@ resource openAIEndpointSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource openAIDeploymentNameSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource openAIDeploymentNameSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'openai-deployment-name'
   properties: {
@@ -96,7 +96,7 @@ resource openAIDeploymentNameSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-0
 }
 
 // Additional secrets (for future use - e.g., NextAuth, OAuth)
-resource additionalSecretsResources 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = [for secret in items(additionalSecrets): {
+resource additionalSecretsResources 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = [for secret in items(additionalSecrets): {
   parent: keyVault
   name: secret.key
   properties: {

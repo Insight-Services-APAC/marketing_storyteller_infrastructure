@@ -1,0 +1,3917 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "8659507876725914265"
+    },
+    "name": "Marketing Storyteller - Infrastructure Deployment",
+    "description": "Deploy Marketing Storyteller infrastructure to Azure",
+    "version": "1.0.0",
+    "author": "Insight Services APAC"
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "australiaeast",
+      "metadata": {
+        "description": "Required. Location for all resources."
+      }
+    },
+    "environmentId": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Required. Environment ID."
+      }
+    },
+    "appNamePrefix": {
+      "type": "string",
+      "defaultValue": "marketingstory",
+      "metadata": {
+        "description": "Optional. Application name prefix."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "environment": "[parameters('environmentId')]",
+        "applicationName": "Marketing Storyteller",
+        "iac": "Bicep"
+      },
+      "metadata": {
+        "description": "Optional. Tags for all resources."
+      }
+    },
+    "postgresAdminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Required. PostgreSQL administrator username."
+      }
+    },
+    "postgresAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Required. PostgreSQL administrator password."
+      }
+    },
+    "additionalAppSettings": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Optional. Additional app settings."
+      }
+    },
+    "keyVaultInitialAccessPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Key Vault initial access principal ID."
+      }
+    },
+    "useExistingOpenAI": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Optional. Use existing Azure OpenAI Service instead of creating new."
+      }
+    },
+    "existingOpenAIName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Name of existing Azure OpenAI Service."
+      }
+    },
+    "existingOpenAIResourceGroup": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Resource group of existing Azure OpenAI Service."
+      }
+    },
+    "existingGPT4DeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-4",
+      "metadata": {
+        "description": "Optional. Existing GPT-4 deployment name in the OpenAI service."
+      }
+    },
+    "alertEmailAddresses": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Optional. Email addresses to send alerts to."
+      }
+    },
+    "alertSmsNumbers": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Optional. SMS phone numbers to send critical alerts (AU format without country code)."
+      }
+    },
+    "enableAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Optional. Enable monitoring alerts."
+      }
+    },
+    "enablePrivateEndpoints": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Optional. Enable private endpoints for backend services."
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/16",
+      "metadata": {
+        "description": "Optional. Virtual Network address prefix."
+      }
+    }
+  },
+  "variables": {
+    "locationAbbr": "aue",
+    "envConfig": {
+      "dev": {
+        "appServiceSku": "P1V3",
+        "postgresqlSku": "Standard_B1ms",
+        "postgresqlTier": "Burstable",
+        "postgresqlBackupRetention": 7,
+        "postgresqlGeoRedundantBackup": "Disabled",
+        "postgresqlHighAvailability": "Disabled",
+        "storageSku": "Standard_LRS",
+        "redisSku": "Basic",
+        "redisFamily": "C",
+        "redisCapacity": 0,
+        "gpt4Capacity": 10,
+        "logRetentionDays": 30
+      },
+      "prod": {
+        "appServiceSku": "P2V3",
+        "postgresqlSku": "Standard_D2s_v3",
+        "postgresqlTier": "GeneralPurpose",
+        "postgresqlBackupRetention": 35,
+        "postgresqlGeoRedundantBackup": "Enabled",
+        "postgresqlHighAvailability": "ZoneRedundant",
+        "storageSku": "Standard_GRS",
+        "redisSku": "Standard",
+        "redisFamily": "C",
+        "redisCapacity": 1,
+        "gpt4Capacity": 50,
+        "logRetentionDays": 90
+      }
+    },
+    "config": "[variables('envConfig')[parameters('environmentId')]]",
+    "names": {
+      "logAnalytics": "[format('law-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "appInsights": "[format('appi-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "storage": "[format('st{0}{1}{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "redis": "[format('redis-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "openai": "[format('oai-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "keyVault": "[format('kv-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "postgresql": "[format('psql-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "appServicePlan": "[format('asp-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "appService": "[format('app-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "actionGroup": "[format('ag-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "vnet": "[format('vnet-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]"
+    }
+  },
+  "resources": [
+    {
+      "condition": "[equals(parameters('environmentId'), 'prod')]",
+      "type": "Microsoft.Authorization/locks",
+      "apiVersion": "2020-05-01",
+      "name": "[format('lock-{0}', resourceGroup().name)]",
+      "properties": {
+        "level": "CanNotDelete",
+        "notes": "Prevent accidental deletion of production resources"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, variables('names').keyVault, variables('names').appService, '4633458b-17de-408a-b874-0445c86b69e6')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service'), '2025-04-01').outputs.principalId.value]",
+        "principalType": "ServicePrincipal",
+        "description": "Allow App Service to read secrets from Key Vault"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-app-service')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, replace(variables('names').storage, '-', ''), variables('names').appService, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service'), '2025-04-01').outputs.principalId.value]",
+        "principalType": "ServicePrincipal",
+        "description": "Allow App Service to read/write blobs in Storage Account"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-app-service')]"
+      ]
+    },
+    {
+      "condition": "[parameters('enablePrivateEndpoints')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-network",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "vnetName": {
+            "value": "[variables('names').vnet]"
+          },
+          "addressPrefixes": {
+            "value": [
+              "[parameters('vnetAddressPrefix')]"
+            ]
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "7033730126112599831"
+            },
+            "name": "Marketing Storyteller - Network Module",
+            "description": "Deploy Virtual Network with subnets for private endpoints",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the Virtual Network."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "addressPrefixes": {
+              "type": "array",
+              "defaultValue": [
+                "10.0.0.0/16"
+              ],
+              "metadata": {
+                "description": "Optional. Virtual Network address space."
+              }
+            },
+            "enableDdosProtection": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable DDoS protection."
+              }
+            },
+            "ddosProtectionPlanId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. DDoS protection plan ID."
+              }
+            },
+            "dnsServers": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Optional. DNS servers for the VNet."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            }
+          },
+          "variables": {
+            "subnets": [
+              {
+                "name": "snet-private-endpoints",
+                "addressPrefix": "10.0.1.0/24",
+                "privateEndpointNetworkPolicies": "Disabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+              },
+              {
+                "name": "snet-app-services",
+                "addressPrefix": "10.0.2.0/24",
+                "delegations": [
+                  {
+                    "name": "delegation-app-service",
+                    "properties": {
+                      "serviceName": "Microsoft.Web/serverFarms"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "snet-container-apps",
+                "addressPrefix": "10.0.3.0/23",
+                "delegations": []
+              }
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('vnetName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "copy": [
+                  {
+                    "name": "subnets",
+                    "count": "[length(variables('subnets'))]",
+                    "input": {
+                      "name": "[variables('subnets')[copyIndex('subnets')].name]",
+                      "properties": {
+                        "addressPrefix": "[variables('subnets')[copyIndex('subnets')].addressPrefix]",
+                        "privateEndpointNetworkPolicies": "[coalesce(tryGet(variables('subnets')[copyIndex('subnets')], 'privateEndpointNetworkPolicies'), 'Disabled')]",
+                        "privateLinkServiceNetworkPolicies": "[coalesce(tryGet(variables('subnets')[copyIndex('subnets')], 'privateLinkServiceNetworkPolicies'), 'Enabled')]",
+                        "delegations": "[coalesce(tryGet(variables('subnets')[copyIndex('subnets')], 'delegations'), createArray())]"
+                      }
+                    }
+                  }
+                ],
+                "addressSpace": {
+                  "addressPrefixes": "[parameters('addressPrefixes')]"
+                },
+                "dhcpOptions": "[if(not(empty(parameters('dnsServers'))), createObject('dnsServers', parameters('dnsServers')), null())]",
+                "enableDdosProtection": "[parameters('enableDdosProtection')]",
+                "ddosProtectionPlan": "[if(and(parameters('enableDdosProtection'), not(empty(parameters('ddosProtectionPlanId')))), createObject('id', parameters('ddosProtectionPlanId')), null())]"
+              }
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Network/virtualNetworks/{0}', parameters('vnetName'))]",
+              "name": "[format('diag-{0}', parameters('vnetName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "VMProtectionAlerts",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Virtual Network."
+              },
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+            },
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Virtual Network."
+              },
+              "value": "[parameters('vnetName')]"
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the private endpoints subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[0].id]"
+            },
+            "privateEndpointSubnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the private endpoints subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[0].name]"
+            },
+            "appServiceSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the app services subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[1].id]"
+            },
+            "appServiceSubnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the app services subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[1].name]"
+            },
+            "containerAppsSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the container apps subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[2].id]"
+            },
+            "containerAppsSubnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the container apps subnet."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '2024-10-01').subnets[2].name]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]"
+      ]
+    },
+    {
+      "condition": "[parameters('enablePrivateEndpoints')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-private-dns-zones",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "global"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "vnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-network'), '2025-04-01').outputs.vnetId.value), createObject('value', ''))]",
+          "deployPostgresZone": {
+            "value": true
+          },
+          "deployRedisZone": {
+            "value": true
+          },
+          "deployStorageZones": {
+            "value": true
+          },
+          "deployKeyVaultZone": {
+            "value": true
+          },
+          "deployOpenAIZone": {
+            "value": false
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "16513746653715115134"
+            },
+            "name": "Marketing Storyteller - Private DNS Zones Module",
+            "description": "Deploy Private DNS Zones for private endpoints",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Virtual Network ID to link DNS zones to."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "deployPostgresZone": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy PostgreSQL private DNS zone."
+              }
+            },
+            "deployRedisZone": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy Redis private DNS zone."
+              }
+            },
+            "deployStorageZones": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy Storage private DNS zones."
+              }
+            },
+            "deployKeyVaultZone": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy Key Vault private DNS zone."
+              }
+            },
+            "deployOpenAIZone": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy OpenAI private DNS zone."
+              }
+            }
+          },
+          "resources": [
+            {
+              "condition": "[parameters('deployPostgresZone')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.postgres.database.azure.com",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployPostgresZone')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.postgres.database.azure.com', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com')]"
+              ]
+            },
+            {
+              "condition": "[parameters('deployRedisZone')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.redis.cache.windows.net",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployRedisZone')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.redis.cache.windows.net', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.redis.cache.windows.net')]"
+              ]
+            },
+            {
+              "condition": "[parameters('deployStorageZones')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.blob.core.windows.net",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployStorageZones')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.blob.core.windows.net', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.blob.core.windows.net')]"
+              ]
+            },
+            {
+              "condition": "[parameters('deployStorageZones')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.file.core.windows.net",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployStorageZones')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.file.core.windows.net', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.file.core.windows.net')]"
+              ]
+            },
+            {
+              "condition": "[parameters('deployKeyVaultZone')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.vaultcore.azure.net",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployKeyVaultZone')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+              ]
+            },
+            {
+              "condition": "[parameters('deployOpenAIZone')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.openai.azure.com",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "condition": "[parameters('deployOpenAIZone')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.openai.azure.com', 'link-to-vnet')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.openai.azure.com')]"
+              ]
+            }
+          ],
+          "outputs": {
+            "postgresPrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the PostgreSQL private DNS zone."
+              },
+              "value": "[if(parameters('deployPostgresZone'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com'), '')]"
+            },
+            "redisPrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Redis private DNS zone."
+              },
+              "value": "[if(parameters('deployRedisZone'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.redis.cache.windows.net'), '')]"
+            },
+            "storageBlobPrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Storage Blob private DNS zone."
+              },
+              "value": "[if(parameters('deployStorageZones'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.blob.core.windows.net'), '')]"
+            },
+            "storageFilePrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Storage File private DNS zone."
+              },
+              "value": "[if(parameters('deployStorageZones'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.file.core.windows.net'), '')]"
+            },
+            "keyVaultPrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Key Vault private DNS zone."
+              },
+              "value": "[if(parameters('deployKeyVaultZone'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net'), '')]"
+            },
+            "openAIPrivateDnsZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the OpenAI private DNS zone."
+              },
+              "value": "[if(parameters('deployOpenAIZone'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.openai.azure.com'), '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-network')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-monitoring",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "logAnalyticsWorkspaceName": {
+            "value": "[variables('names').logAnalytics]"
+          },
+          "applicationInsightsName": {
+            "value": "[variables('names').appInsights]"
+          },
+          "retentionInDays": {
+            "value": "[variables('config').logRetentionDays]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "6668059650014587097"
+            },
+            "name": "Marketing Storyteller - Monitoring Module",
+            "description": "Deploy Log Analytics Workspace and Application Insights",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "logAnalyticsWorkspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name for Log Analytics Workspace."
+              }
+            },
+            "applicationInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name for Application Insights."
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "minValue": 30,
+              "maxValue": 730,
+              "metadata": {
+                "description": "Optional. Log Analytics retention in days."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "PerGB2018",
+              "allowedValues": [
+                "PerGB2018",
+                "CapacityReservation"
+              ],
+              "metadata": {
+                "description": "Optional. Log Analytics SKU."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2025-02-01",
+              "name": "[parameters('logAnalyticsWorkspaceName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "[parameters('sku')]"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]",
+                "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('applicationInsightsName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Log Analytics Workspace."
+              },
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+            },
+            "logAnalyticsWorkspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Log Analytics Workspace."
+              },
+              "value": "[parameters('logAnalyticsWorkspaceName')]"
+            },
+            "applicationInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Application Insights."
+              },
+              "value": "[resourceId('Microsoft.Insights/components', parameters('applicationInsightsName'))]"
+            },
+            "applicationInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Application Insights."
+              },
+              "value": "[parameters('applicationInsightsName')]"
+            },
+            "instrumentationKey": {
+              "type": "string",
+              "metadata": {
+                "description": "The instrumentation key for Application Insights."
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+            },
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "The connection string for Application Insights."
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "storageAccountName": {
+            "value": "[replace(variables('names').storage, '-', '')]"
+          },
+          "sku": {
+            "value": "[variables('config').storageSku]"
+          },
+          "containers": {
+            "value": [
+              "story-documents",
+              "enhancement-files"
+            ]
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          },
+          "enableBlobPrivateEndpoint": {
+            "value": "[parameters('enablePrivateEndpoints')]"
+          },
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-network'), '2025-04-01').outputs.privateEndpointSubnetId.value), createObject('value', ''))]",
+          "blobPrivateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones'), '2025-04-01').outputs.storageBlobPrivateDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "16608867577407771001"
+            },
+            "name": "Marketing Storyteller - Storage Module",
+            "description": "Deploy Azure Storage Account for document storage",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "storageAccountName": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24,
+              "metadata": {
+                "description": "Required. Name of the Storage Account."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Standard_LRS",
+              "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS",
+                "Standard_RAGRS",
+                "Standard_ZRS",
+                "Premium_LRS"
+              ],
+              "metadata": {
+                "description": "Optional. Storage Account SKU."
+              }
+            },
+            "kind": {
+              "type": "string",
+              "defaultValue": "StorageV2",
+              "allowedValues": [
+                "Storage",
+                "StorageV2",
+                "BlobStorage"
+              ],
+              "metadata": {
+                "description": "Optional. Storage Account kind."
+              }
+            },
+            "allowBlobPublicAccess": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Allow public access to blobs."
+              }
+            },
+            "minimumTlsVersion": {
+              "type": "string",
+              "defaultValue": "TLS1_2",
+              "allowedValues": [
+                "TLS1_2",
+                "TLS1_3"
+              ],
+              "metadata": {
+                "description": "Optional. Minimum TLS version."
+              }
+            },
+            "containers": {
+              "type": "array",
+              "defaultValue": [
+                "story-documents",
+                "enhancement-files"
+              ],
+              "metadata": {
+                "description": "Optional. List of blob containers to create."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            },
+            "enableBlobPrivateEndpoint": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable private endpoint for blob."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Subnet ID for private endpoint."
+              }
+            },
+            "blobPrivateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Private DNS zone ID for Storage Blob."
+              }
+            },
+            "blobPrivateEndpointName": {
+              "type": "string",
+              "defaultValue": "[format('{0}-blob-pe', parameters('storageAccountName'))]",
+              "metadata": {
+                "description": "Optional. Private endpoint name."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2024-01-01",
+              "name": "[parameters('storageAccountName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "kind": "[parameters('kind')]",
+              "properties": {
+                "accessTier": "Hot",
+                "allowBlobPublicAccess": "[parameters('allowBlobPublicAccess')]",
+                "minimumTlsVersion": "[parameters('minimumTlsVersion')]",
+                "supportsHttpsTrafficOnly": true,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "defaultAction": "Allow",
+                  "bypass": "AzureServices"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+              "properties": {
+                "cors": {
+                  "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                  "enabled": true,
+                  "days": 7
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "blobContainers",
+                "count": "[length(parameters('containers'))]"
+              },
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('containers')[copyIndex()])]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
+              "name": "[format('diag-{0}', parameters('storageAccountName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "metrics": [
+                  {
+                    "category": "Transaction",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}/blobServices/{1}', parameters('storageAccountName'), 'default')]",
+              "name": "[format('diag-{0}', 'default')]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "StorageRead",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "StorageWrite",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "StorageDelete",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "Transaction",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableBlobPrivateEndpoint'), not(empty(parameters('privateEndpointSubnetId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('blobPrivateEndpointName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-connection', parameters('blobPrivateEndpointName'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                      "groupIds": [
+                        "blob"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableBlobPrivateEndpoint'), not(empty(parameters('blobPrivateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('blobPrivateEndpointName'), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-blob-core-windows-net",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('blobPrivateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', parameters('blobPrivateEndpointName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "storageAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Storage Account."
+              },
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Storage Account."
+              },
+              "value": "[parameters('storageAccountName')]"
+            },
+            "blobEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "The primary blob endpoint."
+              },
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2024-01-01').primaryEndpoints.blob]"
+            },
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "The storage account connection string."
+              },
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2024-01-01').keys[0].value, environment().suffixes.storage)]"
+            },
+            "containerNames": {
+              "type": "array",
+              "metadata": {
+                "description": "The names of the created containers."
+              },
+              "copy": {
+                "count": "[length(parameters('containers'))]",
+                "input": "[parameters('containers')[copyIndex()]]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-network')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-redis",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "redisCacheName": {
+            "value": "[variables('names').redis]"
+          },
+          "sku": {
+            "value": "[variables('config').redisSku]"
+          },
+          "family": {
+            "value": "[variables('config').redisFamily]"
+          },
+          "capacity": {
+            "value": "[variables('config').redisCapacity]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          },
+          "enablePrivateEndpoint": {
+            "value": "[parameters('enablePrivateEndpoints')]"
+          },
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-network'), '2025-04-01').outputs.privateEndpointSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones'), '2025-04-01').outputs.redisPrivateDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "12505203347899502106"
+            },
+            "name": "Marketing Storyteller - Redis Cache Module",
+            "description": "Deploy Azure Cache for Redis for BullMQ job queue",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "redisCacheName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the Redis Cache."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Basic",
+              "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "Optional. Redis Cache SKU."
+              }
+            },
+            "family": {
+              "type": "string",
+              "defaultValue": "C",
+              "allowedValues": [
+                "C",
+                "P"
+              ],
+              "metadata": {
+                "description": "Optional. Redis Cache family."
+              }
+            },
+            "capacity": {
+              "type": "int",
+              "defaultValue": 0,
+              "allowedValues": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "metadata": {
+                "description": "Optional. Redis Cache capacity."
+              }
+            },
+            "enableNonSslPort": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable non-SSL port (6379)."
+              }
+            },
+            "minimumTlsVersion": {
+              "type": "string",
+              "defaultValue": "1.2",
+              "allowedValues": [
+                "1.0",
+                "1.1",
+                "1.2"
+              ],
+              "metadata": {
+                "description": "Optional. Minimum TLS version."
+              }
+            },
+            "redisVersion": {
+              "type": "string",
+              "defaultValue": "6",
+              "allowedValues": [
+                "6",
+                "7"
+              ],
+              "metadata": {
+                "description": "Optional. Redis version."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            },
+            "enablePrivateEndpoint": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable private endpoint."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Subnet ID for private endpoint."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Private DNS zone ID for Redis."
+              }
+            },
+            "privateEndpointName": {
+              "type": "string",
+              "defaultValue": "[format('{0}-pe', parameters('redisCacheName'))]",
+              "metadata": {
+                "description": "Optional. Private endpoint name."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Cache/redis",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('redisCacheName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "[parameters('sku')]",
+                  "family": "[parameters('family')]",
+                  "capacity": "[parameters('capacity')]"
+                },
+                "enableNonSslPort": "[parameters('enableNonSslPort')]",
+                "minimumTlsVersion": "[parameters('minimumTlsVersion')]",
+                "redisVersion": "[parameters('redisVersion')]",
+                "publicNetworkAccess": "Enabled",
+                "redisConfiguration": {
+                  "maxmemory-policy": "volatile-lru"
+                }
+              }
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Cache/redis/{0}', parameters('redisCacheName'))]",
+              "name": "[format('diag-{0}', parameters('redisCacheName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "ConnectedClientList",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Cache/redis', parameters('redisCacheName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateEndpointSubnetId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('privateEndpointName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-connection', parameters('privateEndpointName'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Cache/redis', parameters('redisCacheName'))]",
+                      "groupIds": [
+                        "redisCache"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Cache/redis', parameters('redisCacheName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('privateEndpointName'), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-redis-cache-windows-net",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', parameters('privateEndpointName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "redisCacheId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Redis Cache."
+              },
+              "value": "[resourceId('Microsoft.Cache/redis', parameters('redisCacheName'))]"
+            },
+            "redisCacheName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Redis Cache."
+              },
+              "value": "[parameters('redisCacheName')]"
+            },
+            "hostName": {
+              "type": "string",
+              "metadata": {
+                "description": "The hostname of the Redis Cache."
+              },
+              "value": "[reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').hostName]"
+            },
+            "sslPort": {
+              "type": "int",
+              "metadata": {
+                "description": "The SSL port of the Redis Cache."
+              },
+              "value": "[reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').sslPort]"
+            },
+            "port": {
+              "type": "int",
+              "metadata": {
+                "description": "The port of the Redis Cache."
+              },
+              "value": "[reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').port]"
+            },
+            "primaryKey": {
+              "type": "string",
+              "metadata": {
+                "description": "The primary key for the Redis Cache."
+              },
+              "value": "[listKeys(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').primaryKey]"
+            },
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "The Redis connection string."
+              },
+              "value": "[format('{0}:{1},password={2},ssl=True,abortConnect=False', reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').hostName, reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').sslPort, listKeys(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2024-03-01').primaryKey)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-network')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-openai",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "openAIName": {
+            "value": "[variables('names').openai]"
+          },
+          "gpt4Capacity": {
+            "value": "[variables('config').gpt4Capacity]"
+          },
+          "useExistingOpenAI": {
+            "value": "[parameters('useExistingOpenAI')]"
+          },
+          "existingOpenAIName": {
+            "value": "[parameters('existingOpenAIName')]"
+          },
+          "existingOpenAIResourceGroup": {
+            "value": "[parameters('existingOpenAIResourceGroup')]"
+          },
+          "gpt4DeploymentName": "[if(parameters('useExistingOpenAI'), createObject('value', parameters('existingGPT4DeploymentName')), createObject('value', 'gpt-4'))]",
+          "deployGPT4": {
+            "value": "[not(parameters('useExistingOpenAI'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "7177559901906602926"
+            },
+            "name": "Marketing Storyteller - Azure OpenAI Module",
+            "description": "Deploy or reference existing Azure OpenAI Service with GPT-4 deployment",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "useExistingOpenAI": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Use existing Azure OpenAI Service instead of creating new."
+              }
+            },
+            "existingOpenAIResourceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of existing Azure OpenAI Service (required if useExistingOpenAI is true)."
+              }
+            },
+            "existingOpenAIName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Name of existing Azure OpenAI Service (required if useExistingOpenAI is true)."
+              }
+            },
+            "existingOpenAIResourceGroup": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource group of existing Azure OpenAI Service (required if useExistingOpenAI is true)."
+              }
+            },
+            "openAIName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the Azure OpenAI Service (used only when creating new)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "S0",
+              "allowedValues": [
+                "S0"
+              ],
+              "metadata": {
+                "description": "Optional. Azure OpenAI SKU."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Optional. Public network access."
+              }
+            },
+            "deployGPT4": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Deploy GPT-4 model (only applies when creating new OpenAI service)."
+              }
+            },
+            "gpt4DeploymentName": {
+              "type": "string",
+              "defaultValue": "gpt-4",
+              "metadata": {
+                "description": "Optional. GPT-4 deployment name."
+              }
+            },
+            "gpt4ModelVersion": {
+              "type": "string",
+              "defaultValue": "turbo-2024-04-09",
+              "metadata": {
+                "description": "Optional. GPT-4 model version."
+              }
+            },
+            "gpt4Capacity": {
+              "type": "int",
+              "defaultValue": 10,
+              "minValue": 1,
+              "maxValue": 100,
+              "metadata": {
+                "description": "Optional. GPT-4 capacity (tokens per minute in thousands)."
+              }
+            }
+          },
+          "resources": [
+            {
+              "condition": "[not(parameters('useExistingOpenAI'))]",
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('openAIName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "OpenAI",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "properties": {
+                "customSubDomainName": "[parameters('openAIName')]",
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "networkAcls": {
+                  "defaultAction": "Allow"
+                }
+              }
+            },
+            {
+              "condition": "[and(not(parameters('useExistingOpenAI')), parameters('deployGPT4'))]",
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('openAIName'), parameters('gpt4DeploymentName'))]",
+              "sku": {
+                "name": "Standard",
+                "capacity": "[parameters('gpt4Capacity')]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "gpt-4",
+                  "version": "[parameters('gpt4ModelVersion')]"
+                },
+                "versionUpgradeOption": "OnceNewDefaultVersionAvailable",
+                "raiPolicyName": "Microsoft.Default"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAIName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "openAIId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Azure OpenAI Service."
+              },
+              "value": "[if(parameters('useExistingOpenAI'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('existingOpenAIResourceGroup')), 'Microsoft.CognitiveServices/accounts', parameters('existingOpenAIName')), resourceId('Microsoft.CognitiveServices/accounts', parameters('openAIName')))]"
+            },
+            "openAIName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Azure OpenAI Service."
+              },
+              "value": "[if(parameters('useExistingOpenAI'), parameters('existingOpenAIName'), parameters('openAIName'))]"
+            },
+            "endpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "The endpoint of the Azure OpenAI Service."
+              },
+              "value": "[if(parameters('useExistingOpenAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('existingOpenAIResourceGroup')), 'Microsoft.CognitiveServices/accounts', parameters('existingOpenAIName')), '2024-10-01').endpoint, reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAIName')), '2024-10-01').endpoint)]"
+            },
+            "primaryKey": {
+              "type": "string",
+              "metadata": {
+                "description": "The primary key for the Azure OpenAI Service."
+              },
+              "value": "[if(parameters('useExistingOpenAI'), listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('existingOpenAIResourceGroup')), 'Microsoft.CognitiveServices/accounts', parameters('existingOpenAIName')), '2024-10-01').key1, listKeys(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAIName')), '2024-10-01').key1)]"
+            },
+            "gpt4DeploymentName": {
+              "type": "string",
+              "metadata": {
+                "description": "The GPT-4 deployment name."
+              },
+              "value": "[parameters('gpt4DeploymentName')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-keyvault",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "keyVaultName": {
+            "value": "[variables('names').keyVault]"
+          },
+          "initialAccessPrincipalId": {
+            "value": "[parameters('keyVaultInitialAccessPrincipalId')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          },
+          "enablePrivateEndpoint": {
+            "value": "[parameters('enablePrivateEndpoints')]"
+          },
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-network'), '2025-04-01').outputs.privateEndpointSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones'), '2025-04-01').outputs.keyVaultPrivateDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "12480507265242900452"
+            },
+            "name": "Marketing Storyteller - Key Vault Module",
+            "description": "Deploy Azure Key Vault for secrets management",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24,
+              "metadata": {
+                "description": "Required. Name of the Key Vault."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "standard",
+              "allowedValues": [
+                "standard",
+                "premium"
+              ],
+              "metadata": {
+                "description": "Optional. Key Vault SKU."
+              }
+            },
+            "tenantId": {
+              "type": "string",
+              "defaultValue": "[subscription().tenantId]",
+              "metadata": {
+                "description": "Optional. Azure AD tenant ID."
+              }
+            },
+            "enableSoftDelete": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable soft delete."
+              }
+            },
+            "softDeleteRetentionInDays": {
+              "type": "int",
+              "defaultValue": 90,
+              "minValue": 7,
+              "maxValue": 90,
+              "metadata": {
+                "description": "Optional. Soft delete retention days."
+              }
+            },
+            "enablePurgeProtection": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable purge protection."
+              }
+            },
+            "enableRbacAuthorization": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable RBAC authorization."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Optional. Public network access."
+              }
+            },
+            "initialAccessPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Object ID of the user/service principal to grant initial access."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            },
+            "enablePrivateEndpoint": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable private endpoint."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Subnet ID for private endpoint."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Private DNS zone ID for Key Vault."
+              }
+            },
+            "privateEndpointName": {
+              "type": "string",
+              "defaultValue": "[format('{0}-pe', parameters('keyVaultName'))]",
+              "metadata": {
+                "description": "Optional. Private endpoint name."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-11-01",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "family": "A",
+                  "name": "[parameters('sku')]"
+                },
+                "tenantId": "[parameters('tenantId')]",
+                "enableSoftDelete": "[parameters('enableSoftDelete')]",
+                "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
+                "enablePurgeProtection": "[if(parameters('enablePurgeProtection'), true(), null())]",
+                "enableRbacAuthorization": "[parameters('enableRbacAuthorization')]",
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "networkAcls": {
+                  "defaultAction": "Allow",
+                  "bypass": "AzureServices"
+                },
+                "accessPolicies": []
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('initialAccessPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('initialAccessPrincipalId'), 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+                "principalId": "[parameters('initialAccessPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
+              "name": "[format('diag-{0}', parameters('keyVaultName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "AuditEvent",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "AzurePolicyEvaluationDetails",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateEndpointSubnetId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('privateEndpointName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-connection', parameters('privateEndpointName'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "groupIds": [
+                        "vault"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('privateEndpointName'), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-vaultcore-azure-net",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', parameters('privateEndpointName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "keyVaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Key Vault."
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Key Vault."
+              },
+              "value": "[parameters('keyVaultName')]"
+            },
+            "vaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "The URI of the Key Vault."
+              },
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-11-01').vaultUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-network')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-postgresql",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "serverName": {
+            "value": "[variables('names').postgresql]"
+          },
+          "administratorLogin": {
+            "value": "[parameters('postgresAdminUsername')]"
+          },
+          "administratorPassword": {
+            "value": "[parameters('postgresAdminPassword')]"
+          },
+          "skuName": {
+            "value": "[variables('config').postgresqlSku]"
+          },
+          "tier": {
+            "value": "[variables('config').postgresqlTier]"
+          },
+          "databaseName": {
+            "value": "marketingstory"
+          },
+          "backupRetentionDays": {
+            "value": "[variables('config').postgresqlBackupRetention]"
+          },
+          "geoRedundantBackup": {
+            "value": "[variables('config').postgresqlGeoRedundantBackup]"
+          },
+          "highAvailability": {
+            "value": "[variables('config').postgresqlHighAvailability]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          },
+          "enablePrivateEndpoint": {
+            "value": "[parameters('enablePrivateEndpoints')]"
+          },
+          "privateEndpointSubnetId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-network'), '2025-04-01').outputs.privateEndpointSubnetId.value), createObject('value', ''))]",
+          "privateDnsZoneId": "[if(parameters('enablePrivateEndpoints'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones'), '2025-04-01').outputs.postgresPrivateDnsZoneId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "15506355856128972703"
+            },
+            "name": "Marketing Storyteller - PostgreSQL Module",
+            "description": "Deploy Azure Database for PostgreSQL Flexible Server",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the PostgreSQL Flexible Server."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "administratorLogin": {
+              "type": "string",
+              "minLength": 1,
+              "metadata": {
+                "description": "Required. Administrator username."
+              }
+            },
+            "administratorPassword": {
+              "type": "securestring",
+              "minLength": 8,
+              "metadata": {
+                "description": "Required. Administrator password."
+              }
+            },
+            "version": {
+              "type": "string",
+              "defaultValue": "16",
+              "allowedValues": [
+                "16",
+                "15",
+                "14",
+                "13",
+                "12",
+                "11"
+              ],
+              "metadata": {
+                "description": "Optional. PostgreSQL version."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard_B1ms",
+              "metadata": {
+                "description": "Optional. PostgreSQL SKU name."
+              }
+            },
+            "tier": {
+              "type": "string",
+              "defaultValue": "Burstable",
+              "allowedValues": [
+                "Burstable",
+                "GeneralPurpose",
+                "MemoryOptimized"
+              ],
+              "metadata": {
+                "description": "Optional. PostgreSQL tier."
+              }
+            },
+            "storageSizeGB": {
+              "type": "int",
+              "defaultValue": 32,
+              "minValue": 32,
+              "maxValue": 16384,
+              "metadata": {
+                "description": "Optional. Storage size in GB."
+              }
+            },
+            "backupRetentionDays": {
+              "type": "int",
+              "defaultValue": 7,
+              "minValue": 7,
+              "maxValue": 35,
+              "metadata": {
+                "description": "Optional. Backup retention days."
+              }
+            },
+            "geoRedundantBackup": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "metadata": {
+                "description": "Optional. Enable geo-redundant backup."
+              }
+            },
+            "highAvailability": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "metadata": {
+                "description": "Optional. Enable high availability."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Optional. Public network access."
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "defaultValue": "marketingstory",
+              "metadata": {
+                "description": "Optional. Database name to create."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            },
+            "enablePrivateEndpoint": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Optional. Enable private endpoint."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Subnet ID for private endpoint."
+              }
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Private DNS zone ID for PostgreSQL."
+              }
+            },
+            "privateEndpointName": {
+              "type": "string",
+              "defaultValue": "[format('{0}-pe', parameters('serverName'))]",
+              "metadata": {
+                "description": "Optional. Private endpoint name."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('tier')]"
+              },
+              "properties": {
+                "version": "[parameters('version')]",
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorPassword')]",
+                "storage": {
+                  "storageSizeGB": "[parameters('storageSizeGB')]",
+                  "autoGrow": "Enabled"
+                },
+                "backup": {
+                  "backupRetentionDays": "[parameters('backupRetentionDays')]",
+                  "geoRedundantBackup": "[parameters('geoRedundantBackup')]"
+                },
+                "highAvailability": {
+                  "mode": "[parameters('highAvailability')]"
+                },
+                "network": {
+                  "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                },
+                "authConfig": {
+                  "activeDirectoryAuth": "Disabled",
+                  "passwordAuth": "Enabled"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "properties": {
+                "charset": "UTF8",
+                "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.DBforPostgreSQL/flexibleServers/{0}', parameters('serverName'))]",
+              "name": "[format('diag-{0}', parameters('serverName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "PostgreSQLLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateEndpointSubnetId'))))]",
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('privateEndpointName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-connection', parameters('privateEndpointName'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]",
+                      "groupIds": [
+                        "postgresqlServer"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('privateDnsZoneId'))))]",
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('privateEndpointName'), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-postgres-database-azure-com",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('privateDnsZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', parameters('privateEndpointName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "serverId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the PostgreSQL Flexible Server."
+              },
+              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
+            },
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the PostgreSQL Flexible Server."
+              },
+              "value": "[parameters('serverName')]"
+            },
+            "serverFqdn": {
+              "type": "string",
+              "metadata": {
+                "description": "The FQDN of the PostgreSQL Flexible Server."
+              },
+              "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName')), '2024-08-01').fullyQualifiedDomainName]"
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the database."
+              },
+              "value": "[parameters('databaseName')]"
+            },
+            "connectionStringTemplate": {
+              "type": "string",
+              "metadata": {
+                "description": "The PostgreSQL connection string (without password)."
+              },
+              "value": "[format('postgresql://{0}@{1}:PASSWORD_PLACEHOLDER@{2}:5432/{3}?sslmode=require', parameters('administratorLogin'), parameters('serverName'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName')), '2024-08-01').fullyQualifiedDomainName, parameters('databaseName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-network')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-private-dns-zones')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-keyvault-secrets",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value]"
+          },
+          "postgresConnectionString": {
+            "value": "[format('postgresql://{0}:{1}@{2}:5432/{3}?sslmode=require', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.serverFqdn.value, reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.databaseName.value)]"
+          },
+          "redisConnectionString": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.connectionString.value]"
+          },
+          "storageConnectionString": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.connectionString.value]"
+          },
+          "openAIApiKey": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.primaryKey.value]"
+          },
+          "openAIEndpoint": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.endpoint.value]"
+          },
+          "openAIDeploymentName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.gpt4DeploymentName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "7884614513783784002"
+            },
+            "name": "Marketing Storyteller - Key Vault Secrets Module",
+            "description": "Populate Key Vault with application secrets",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the Key Vault."
+              }
+            },
+            "postgresConnectionString": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Required. PostgreSQL connection string."
+              }
+            },
+            "redisConnectionString": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Required. Redis connection string."
+              }
+            },
+            "storageConnectionString": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Required. Azure Storage connection string."
+              }
+            },
+            "openAIApiKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Required. Azure OpenAI API key."
+              }
+            },
+            "openAIEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Azure OpenAI endpoint."
+              }
+            },
+            "openAIDeploymentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Azure OpenAI deployment name."
+              }
+            },
+            "additionalSecrets": {
+              "type": "secureObject",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Additional secrets to store."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'database-url')]",
+              "properties": {
+                "value": "[parameters('postgresConnectionString')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'redis-url')]",
+              "properties": {
+                "value": "[parameters('redisConnectionString')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'storage-connection-string')]",
+              "properties": {
+                "value": "[parameters('storageConnectionString')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'openai-api-key')]",
+              "properties": {
+                "value": "[parameters('openAIApiKey')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'openai-endpoint')]",
+              "properties": {
+                "value": "[parameters('openAIEndpoint')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'openai-deployment-name')]",
+              "properties": {
+                "value": "[parameters('openAIDeploymentName')]",
+                "contentType": "text/plain"
+              }
+            },
+            {
+              "copy": {
+                "name": "additionalSecretsResources",
+                "count": "[length(items(parameters('additionalSecrets')))]"
+              },
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), items(parameters('additionalSecrets'))[copyIndex()].key)]",
+              "properties": {
+                "value": "[items(parameters('additionalSecrets'))[copyIndex()].value]",
+                "contentType": "text/plain"
+              }
+            }
+          ],
+          "outputs": {
+            "keyVaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Key Vault."
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Key Vault."
+              },
+              "value": "[parameters('keyVaultName')]"
+            },
+            "secretNames": {
+              "type": "array",
+              "metadata": {
+                "description": "Secret names created."
+              },
+              "value": [
+                "database-url",
+                "redis-url",
+                "storage-connection-string",
+                "openai-api-key",
+                "openai-endpoint",
+                "openai-deployment-name"
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-keyvault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-openai')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-postgresql')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-redis')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-storage')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-app-service",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "appServicePlanName": {
+            "value": "[variables('names').appServicePlan]"
+          },
+          "appServiceName": {
+            "value": "[variables('names').appService]"
+          },
+          "skuName": {
+            "value": "[variables('config').appServiceSku]"
+          },
+          "applicationInsightsConnectionString": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.connectionString.value]"
+          },
+          "appSettings": {
+            "value": "[union(createObject('DATABASE_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=database-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'REDIS_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=redis-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_STORAGE_CONNECTION_STRING', format('@Microsoft.KeyVault(VaultName={0};SecretName=storage-connection-string)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_API_KEY', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-api-key)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_ENDPOINT', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-endpoint)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_DEPLOYMENT_NAME', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-deployment-name)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_STORAGE_ACCOUNT_NAME', reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value, 'KEY_VAULT_URI', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.vaultUri.value, 'NODE_ENV', if(equals(parameters('environmentId'), 'prod'), 'production', 'development')), parameters('additionalAppSettings'))]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+          },
+          "enableDiagnostics": {
+            "value": true
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "17118796024963411654"
+            },
+            "name": "Marketing Storyteller - App Service Module",
+            "description": "Deploy Azure App Service for Next.js application",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "appServicePlanName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the App Service Plan."
+              }
+            },
+            "appServiceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the App Service."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "P1V3",
+              "allowedValues": [
+                "P1V3",
+                "P2V3",
+                "P3V3",
+                "P1V2",
+                "P2V2",
+                "P3V2",
+                "S1",
+                "S2",
+                "S3"
+              ],
+              "metadata": {
+                "description": "Optional. App Service Plan SKU."
+              }
+            },
+            "capacity": {
+              "type": "int",
+              "defaultValue": 1,
+              "minValue": 1,
+              "maxValue": 10,
+              "metadata": {
+                "description": "Optional. Number of worker instances."
+              }
+            },
+            "nodeVersion": {
+              "type": "string",
+              "defaultValue": "20-lts",
+              "metadata": {
+                "description": "Optional. Node.js version."
+              }
+            },
+            "applicationInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Application Insights connection string."
+              }
+            },
+            "appSettings": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Application settings."
+              }
+            },
+            "httpsOnly": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable HTTPS only."
+              }
+            },
+            "detailedErrorLoggingEnabled": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable detailed error messages."
+              }
+            },
+            "httpLoggingEnabled": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable HTTP logging."
+              }
+            },
+            "requestTracingEnabled": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable request tracing."
+              }
+            },
+            "alwaysOn": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable Always On."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional. Resource ID of the Log Analytics workspace for diagnostics."
+              }
+            },
+            "enableDiagnostics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable diagnostic settings."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('appServicePlanName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "capacity": "[parameters('capacity')]"
+              },
+              "kind": "linux",
+              "properties": {
+                "reserved": true,
+                "zoneRedundant": false
+              }
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('appServiceName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "app,linux",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+                "httpsOnly": "[parameters('httpsOnly')]",
+                "siteConfig": {
+                  "linuxFxVersion": "[format('NODE|{0}', parameters('nodeVersion'))]",
+                  "alwaysOn": "[parameters('alwaysOn')]",
+                  "minTlsVersion": "1.2",
+                  "ftpsState": "Disabled",
+                  "detailedErrorLoggingEnabled": "[parameters('detailedErrorLoggingEnabled')]",
+                  "httpLoggingEnabled": "[parameters('httpLoggingEnabled')]",
+                  "requestTracingEnabled": "[parameters('requestTracingEnabled')]",
+                  "appSettings": "[union(createArray(createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', format('~{0}', parameters('nodeVersion'))), createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true'), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('applicationInsightsConnectionString'))), items(parameters('appSettings')))]"
+                },
+                "publicNetworkAccess": "Enabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]"
+              ]
+            },
+            {
+              "condition": "[and(parameters('enableDiagnostics'), not(empty(parameters('logAnalyticsWorkspaceId'))))]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.Web/sites/{0}', parameters('appServiceName'))]",
+              "name": "[format('diag-{0}', parameters('appServiceName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "AppServiceHTTPLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "AppServiceConsoleLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "AppServiceAppLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  },
+                  {
+                    "category": "AppServicePlatformLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "enabled": false,
+                      "days": 0
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('appServiceName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "appServicePlanId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the App Service Plan."
+              },
+              "value": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]"
+            },
+            "appServicePlanName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the App Service Plan."
+              },
+              "value": "[parameters('appServicePlanName')]"
+            },
+            "appServiceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the App Service."
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('appServiceName'))]"
+            },
+            "appServiceName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the App Service."
+              },
+              "value": "[parameters('appServiceName')]"
+            },
+            "defaultHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "The default hostname of the App Service."
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('appServiceName')), '2023-12-01').defaultHostName]"
+            },
+            "appServiceUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "The URL of the App Service."
+              },
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', parameters('appServiceName')), '2023-12-01').defaultHostName)]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the system assigned managed identity."
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('appServiceName')), '2023-12-01', 'full').identity.principalId]"
+            },
+            "tenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "The tenant ID of the system assigned managed identity."
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('appServiceName')), '2023-12-01', 'full').identity.tenantId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-keyvault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-storage')]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableAlerts'), greater(length(parameters('alertEmailAddresses')), 0))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-alerts",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "global"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "actionGroupName": {
+            "value": "[variables('names').actionGroup]"
+          },
+          "alertEmailAddresses": {
+            "value": "[parameters('alertEmailAddresses')]"
+          },
+          "alertSmsNumbers": {
+            "value": "[parameters('alertSmsNumbers')]"
+          },
+          "appServiceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service'), '2025-04-01').outputs.appServiceId.value]"
+          },
+          "postgresqlServerId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.serverId.value]"
+          },
+          "redisCacheId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisCacheId.value]"
+          },
+          "applicationInsightsId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.applicationInsightsId.value]"
+          },
+          "environmentId": {
+            "value": "[parameters('environmentId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "315431731353873228"
+            },
+            "name": "Marketing Storyteller - Alerts Module",
+            "description": "Deploy monitoring alerts for critical resources",
+            "version": "1.0.0",
+            "author": "Insight Services APAC"
+          },
+          "parameters": {
+            "actionGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the action group for alerts."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Optional. Location for all resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags of the resource."
+              }
+            },
+            "alertEmailAddresses": {
+              "type": "array",
+              "metadata": {
+                "description": "Required. Email addresses to send alerts to."
+              }
+            },
+            "alertSmsNumbers": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Optional. SMS phone numbers to send critical alerts."
+              }
+            },
+            "appServiceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Resource ID of the App Service to monitor."
+              }
+            },
+            "postgresqlServerId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Resource ID of the PostgreSQL server to monitor."
+              }
+            },
+            "redisCacheId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Resource ID of the Redis cache to monitor."
+              }
+            },
+            "applicationInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Resource ID of the Application Insights."
+              }
+            },
+            "environmentId": {
+              "type": "string",
+              "defaultValue": "dev",
+              "allowedValues": [
+                "dev",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Optional. Environment ID for conditional alert configuration."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/actionGroups",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('actionGroupName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "copy": [
+                  {
+                    "name": "emailReceivers",
+                    "count": "[length(parameters('alertEmailAddresses'))]",
+                    "input": {
+                      "name": "[format('Email-{0}', copyIndex('emailReceivers'))]",
+                      "emailAddress": "[parameters('alertEmailAddresses')[copyIndex('emailReceivers')]]",
+                      "useCommonAlertSchema": true
+                    }
+                  },
+                  {
+                    "name": "smsReceivers",
+                    "count": "[length(parameters('alertSmsNumbers'))]",
+                    "input": {
+                      "name": "[format('SMS-{0}', copyIndex('smsReceivers'))]",
+                      "countryCode": "61",
+                      "phoneNumber": "[parameters('alertSmsNumbers')[copyIndex('smsReceivers')]]"
+                    }
+                  }
+                ],
+                "groupShortName": "[substring(parameters('actionGroupName'), 0, min(length(parameters('actionGroupName')), 12))]",
+                "enabled": true
+              }
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-appservice-cpu-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when App Service CPU usage exceeds 80%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('appServiceId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighCPU",
+                      "metricName": "CpuPercentage",
+                      "metricNamespace": "Microsoft.Web/sites",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-appservice-memory-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when App Service memory usage exceeds 85%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('appServiceId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighMemory",
+                      "metricName": "MemoryPercentage",
+                      "metricNamespace": "Microsoft.Web/sites",
+                      "operator": "GreaterThan",
+                      "threshold": 85,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-appservice-response-time",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when App Service response time exceeds 5 seconds",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('appServiceId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "SlowResponse",
+                      "metricName": "HttpResponseTime",
+                      "metricNamespace": "Microsoft.Web/sites",
+                      "operator": "GreaterThan",
+                      "threshold": 5,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-appservice-http-errors",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when App Service has more than 10 HTTP 5xx errors",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 1, 2)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('appServiceId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighErrorRate",
+                      "metricName": "Http5xx",
+                      "metricNamespace": "Microsoft.Web/sites",
+                      "operator": "GreaterThan",
+                      "threshold": 10,
+                      "timeAggregation": "Total",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-postgresql-cpu-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when PostgreSQL CPU usage exceeds 80%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('postgresqlServerId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighCPU",
+                      "metricName": "cpu_percent",
+                      "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-postgresql-memory-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when PostgreSQL memory usage exceeds 85%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('postgresqlServerId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighMemory",
+                      "metricName": "memory_percent",
+                      "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "operator": "GreaterThan",
+                      "threshold": 85,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-postgresql-storage-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when PostgreSQL storage usage exceeds 85%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 1, 2)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('postgresqlServerId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighStorage",
+                      "metricName": "storage_percent",
+                      "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "operator": "GreaterThan",
+                      "threshold": 85,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-redis-server-load-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when Redis server load exceeds 80%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('redisCacheId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighServerLoad",
+                      "metricName": "serverLoad",
+                      "metricNamespace": "Microsoft.Cache/redis",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-redis-memory-high",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when Redis used memory exceeds 85%",
+                "severity": "[if(equals(parameters('environmentId'), 'prod'), 2, 3)]",
+                "enabled": true,
+                "scopes": [
+                  "[parameters('redisCacheId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighMemory",
+                      "metricName": "usedmemorypercentage",
+                      "metricNamespace": "Microsoft.Cache/redis",
+                      "operator": "GreaterThan",
+                      "threshold": 85,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            },
+            {
+              "condition": "[equals(parameters('environmentId'), 'prod')]",
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "alert-availability-low",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Alert when application availability drops below 99%",
+                "severity": 1,
+                "enabled": true,
+                "scopes": [
+                  "[parameters('applicationInsightsId')]"
+                ],
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "LowAvailability",
+                      "metricName": "availabilityResults/availabilityPercentage",
+                      "metricNamespace": "Microsoft.Insights/components",
+                      "operator": "LessThan",
+                      "threshold": 99,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": [
+                  {
+                    "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "actionGroupId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the action group."
+              },
+              "value": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+            },
+            "actionGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the action group."
+              },
+              "value": "[parameters('actionGroupName')]"
+            },
+            "alertIds": {
+              "type": "array",
+              "metadata": {
+                "description": "The resource IDs of all metric alerts created."
+              },
+              "value": [
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-appservice-cpu-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-appservice-memory-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-appservice-response-time')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-appservice-http-errors')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-postgresql-cpu-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-postgresql-memory-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-postgresql-storage-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-redis-server-load-high')]",
+                "[resourceId('Microsoft.Insights/metricAlerts', 'alert-redis-memory-high')]"
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-app-service')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-postgresql')]",
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-redis')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the resource group."
+      },
+      "value": "[resourceGroup().name]"
+    },
+    "appServiceUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "The App Service URL."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service'), '2025-04-01').outputs.appServiceUrl.value]"
+    },
+    "appServicePrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "The App Service principal ID."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service'), '2025-04-01').outputs.principalId.value]"
+    },
+    "postgresqlServerFqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "The PostgreSQL server FQDN."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.serverFqdn.value]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "metadata": {
+        "description": "The Key Vault URI."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.vaultUri.value]"
+    },
+    "applicationInsightsConnectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "The Application Insights connection string."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.connectionString.value]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The Storage Account name."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value]"
+    },
+    "redisCacheHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "The Redis Cache hostname."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.hostName.value]"
+    },
+    "openAIEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "The Azure OpenAI endpoint."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.endpoint.value]"
+    }
+  }
+}

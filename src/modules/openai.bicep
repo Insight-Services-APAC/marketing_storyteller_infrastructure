@@ -55,13 +55,13 @@ param gpt4ModelVersion string = 'turbo-2024-04-09'
 param gpt4Capacity int = 10
 
 // Reference existing OpenAI service
-resource existingOpenAI 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' existing = if (useExistingOpenAI) {
+resource existingOpenAI 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (useExistingOpenAI) {
   name: existingOpenAIName
   scope: resourceGroup(existingOpenAIResourceGroup)
 }
 
 // Azure OpenAI Account (create new)
-resource openAI 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = if (!useExistingOpenAI) {
+resource openAI 'Microsoft.CognitiveServices/accounts@2024-10-01' = if (!useExistingOpenAI) {
   name: openAIName
   location: location
   tags: tags
@@ -79,7 +79,7 @@ resource openAI 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = if (
 }
 
 // GPT-4 Deployment (only when creating new OpenAI)
-resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-04-01-preview' = if (!useExistingOpenAI && deployGPT4) {
+resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (!useExistingOpenAI && deployGPT4) {
   parent: openAI
   name: gpt4DeploymentName
   sku: {

@@ -91,7 +91,7 @@ param privateDnsZoneId string = ''
 param privateEndpointName string = '${serverName}-pe'
 
 // PostgreSQL Flexible Server
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: serverName
   location: location
   tags: tags
@@ -125,7 +125,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-pr
 }
 
 // Firewall rule to allow Azure services
-resource firewallRuleAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = {
+resource firewallRuleAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = {
   parent: postgresServer
   name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
   properties: {
@@ -135,7 +135,7 @@ resource firewallRuleAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/fi
 }
 
 // Database
-resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-01-preview' = {
+resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
   parent: postgresServer
   name: databaseName
   properties: {
@@ -174,7 +174,7 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 }
 
 // Private Endpoint for PostgreSQL
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (enablePrivateEndpoint && !empty(privateEndpointSubnetId)) {
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = if (enablePrivateEndpoint && !empty(privateEndpointSubnetId)) {
   name: privateEndpointName
   location: location
   tags: tags
@@ -197,7 +197,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (e
 }
 
 // Private DNS Zone Group
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = if (enablePrivateEndpoint && !empty(privateDnsZoneId)) {
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-10-01' = if (enablePrivateEndpoint && !empty(privateDnsZoneId)) {
   name: 'default'
   parent: privateEndpoint
   properties: {

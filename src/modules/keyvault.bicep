@@ -70,7 +70,7 @@ param privateDnsZoneId string = ''
 param privateEndpointName string = '${keyVaultName}-pe'
 
 // Key Vault
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: keyVaultName
   location: location
   tags: tags
@@ -142,7 +142,7 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 }
 
 // Private Endpoint for Key Vault
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (enablePrivateEndpoint && !empty(privateEndpointSubnetId)) {
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = if (enablePrivateEndpoint && !empty(privateEndpointSubnetId)) {
   name: privateEndpointName
   location: location
   tags: tags
@@ -165,7 +165,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (e
 }
 
 // Private DNS Zone Group
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = if (enablePrivateEndpoint && !empty(privateDnsZoneId)) {
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-10-01' = if (enablePrivateEndpoint && !empty(privateDnsZoneId)) {
   name: 'default'
   parent: privateEndpoint
   properties: {

@@ -31,7 +31,7 @@ param retentionInDays int = 30
 param sku string = 'PerGB2018'
 
 // Log Analytics Workspace
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: logAnalyticsWorkspaceName
   location: location
   tags: tags

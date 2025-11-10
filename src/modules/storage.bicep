@@ -70,7 +70,7 @@ param blobPrivateDnsZoneId string = ''
 param blobPrivateEndpointName string = '${storageAccountName}-blob-pe'
 
 // Storage Account
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2024-01-01' = {
   name: storageAccountName
   location: location
   tags: tags
@@ -92,7 +92,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 }
 
 // Blob Service
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
   parent: storageAccount
   name: 'default'
   properties: {
@@ -107,7 +107,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
 }
 
 // Blob Containers
-resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for container in containers: {
+resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2024-01-01' = [for container in containers: {
   parent: blobService
   name: container
   properties: {
@@ -180,7 +180,7 @@ resource blobDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-0
 }
 
 // Private Endpoint for Storage Blob
-resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (enableBlobPrivateEndpoint && !empty(privateEndpointSubnetId)) {
+resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = if (enableBlobPrivateEndpoint && !empty(privateEndpointSubnetId)) {
   name: blobPrivateEndpointName
   location: location
   tags: tags
@@ -203,7 +203,7 @@ resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = i
 }
 
 // Private DNS Zone Group for Blob
-resource blobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = if (enableBlobPrivateEndpoint && !empty(blobPrivateDnsZoneId)) {
+resource blobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-10-01' = if (enableBlobPrivateEndpoint && !empty(blobPrivateDnsZoneId)) {
   name: 'default'
   parent: blobPrivateEndpoint
   properties: {

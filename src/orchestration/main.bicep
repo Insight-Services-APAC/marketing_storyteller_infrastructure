@@ -1,4 +1,4 @@
-targetScope = 'subscription'
+targetScope = 'resourceGroup'
 
 metadata name = 'Marketing Storyteller - Infrastructure Deployment'
 metadata description = 'Deploy Marketing Storyteller infrastructure to Azure'
@@ -71,8 +71,10 @@ param enablePrivateEndpoints bool = false
 @description('Optional. Virtual Network address prefix.')
 param vnetAddressPrefix string = '10.0.0.0/16'
 
+// ============================================================================
 // Variables
-var resourceGroupName = 'rg-${appNamePrefix}-${environmentId}-${locationAbbr}'
+// ============================================================================
+
 var locationAbbr = 'aue' // Australia East
 
 // Environment-specific configurations
@@ -124,43 +126,37 @@ var names = {
   vnet: 'vnet-${appNamePrefix}-${environmentId}-${locationAbbr}'
 }
 
-// Resource Group
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: resourceGroupName
-  location: location
-  tags: tags
-}
-
+// ============================================================================
 // Resource Lock for Production (Prevent accidental deletion)
+// ============================================================================
+
 resource resourceGroupLock 'Microsoft.Authorization/locks@2020-05-01' = if (environmentId == 'prod') {
-  name: 'lock-${resourceGroupName}'
-  scope: resourceGroup
+  name: 'lock-${resourceGroup().name}'
   properties: {
     level: 'CanNotDelete'
     notes: 'Prevent accidental deletion of production resources'
   }
 }
 
+// ============================================================================
+// Networking (Optional - Private Endpoints)
+// ============================================================================
+
 // Network Module (optional - for private endpoints)
 module network '../modules/network.bicep' = if (enablePrivateEndpoints) {
-  scope: resourceGroup
   name: 'deploy-network'
   params: {
     location: location
     tags: tags
     vnetName: names.vnet
     addressPrefixes: [vnetAddressPrefix]
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
   }
-  dependsOn: [
-    monitoring
-  ]
 }
 
 // Private DNS Zones (optional - for private endpoints)
 module privateDnsZones '../modules/private-dns-zones.bicep' = if (enablePrivateEndpoints) {
-  scope: resourceGroup
   name: 'deploy-private-dns-zones'
   params: {
     location: 'global'
@@ -172,14 +168,10 @@ module privateDnsZones '../modules/private-dns-zones.bicep' = if (enablePrivateE
     deployKeyVaultZone: true
     deployOpenAIZone: false // OpenAI doesn't support private endpoints yet
   }
-  dependsOn: [
-    network
-  ]
 }
 
 // Monitoring Module
 module monitoring '../modules/monitoring.bicep' = {
-  scope: resourceGroup
   name: 'deploy-monitoring'
   params: {
     location: location
@@ -192,7 +184,6 @@ module monitoring '../modules/monitoring.bicep' = {
 
 // Storage Module
 module storage '../modules/storage.bicep' = {
-  scope: resourceGroup
   name: 'deploy-storage'
   params: {
     location: location
@@ -203,22 +194,16 @@ module storage '../modules/storage.bicep' = {
       'story-documents'
       'enhancement-files'
     ]
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
     enableBlobPrivateEndpoint: enablePrivateEndpoints
     privateEndpointSubnetId: enablePrivateEndpoints ? network.outputs.privateEndpointSubnetId : ''
     blobPrivateDnsZoneId: enablePrivateEndpoints ? privateDnsZones.outputs.storageBlobPrivateDnsZoneId : ''
   }
-  dependsOn: [
-    monitoring
-    network
-    privateDnsZones
-  ]
 }
 
 // Redis Cache Module
 module redis '../modules/redis.bicep' = {
-  scope: resourceGroup
   name: 'deploy-redis'
   params: {
     location: location
@@ -227,22 +212,16 @@ module redis '../modules/redis.bicep' = {
     sku: config.redisSku
     family: config.redisFamily
     capacity: config.redisCapacity
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
     enablePrivateEndpoint: enablePrivateEndpoints
     privateEndpointSubnetId: enablePrivateEndpoints ? network.outputs.privateEndpointSubnetId : ''
     privateDnsZoneId: enablePrivateEndpoints ? privateDnsZones.outputs.redisPrivateDnsZoneId : ''
   }
-  dependsOn: [
-    monitoring
-    network
-    privateDnsZones
-  ]
 }
 
 // Azure OpenAI Module
 module openai '../modules/openai.bicep' = {
-  scope: resourceGroup
   name: 'deploy-openai'
   params: {
     location: location
@@ -259,29 +238,22 @@ module openai '../modules/openai.bicep' = {
 
 // Key Vault Module
 module keyVault '../modules/keyvault.bicep' = {
-  scope: resourceGroup
   name: 'deploy-keyvault'
   params: {
     location: location
     tags: tags
     keyVaultName: names.keyVault
     initialAccessPrincipalId: keyVaultInitialAccessPrincipalId
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
     enablePrivateEndpoint: enablePrivateEndpoints
     privateEndpointSubnetId: enablePrivateEndpoints ? network.outputs.privateEndpointSubnetId : ''
     privateDnsZoneId: enablePrivateEndpoints ? privateDnsZones.outputs.keyVaultPrivateDnsZoneId : ''
   }
-  dependsOn: [
-    monitoring
-    network
-    privateDnsZones
-  ]
 }
 
 // PostgreSQL Module
 module postgresql '../modules/postgresql.bicep' = {
-  scope: resourceGroup
   name: 'deploy-postgresql'
   params: {
     location: location
@@ -295,35 +267,19 @@ module postgresql '../modules/postgresql.bicep' = {
     backupRetentionDays: config.postgresqlBackupRetention
     geoRedundantBackup: config.postgresqlGeoRedundantBackup
     highAvailability: config.postgresqlHighAvailability
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
     enablePrivateEndpoint: enablePrivateEndpoints
     privateEndpointSubnetId: enablePrivateEndpoints ? network.outputs.privateEndpointSubnetId : ''
     privateDnsZoneId: enablePrivateEndpoints ? privateDnsZones.outputs.postgresPrivateDnsZoneId : ''
   }
-  dependsOn: [
-    monitoring
-    network
-    privateDnsZones
-  ]
-}
-    location: location
-    tags: tags
-    serverName: names.postgresql
-    administratorLogin: postgresAdminUsername
-    administratorPassword: postgresAdminPassword
-    skuName: config.postgresqlSku
-    tier: config.postgresqlTier
-    databaseName: 'marketingstory'
-  }
 }
 
 // Key Vault Secrets Module - Populate secrets
 module keyVaultSecrets '../modules/keyvault-secrets.bicep' = {
-  scope: resourceGroup
   name: 'deploy-keyvault-secrets'
   params: {
-    keyVaultName: keyVault.outputs.vaultName
+    keyVaultName: keyVault.outputs.keyVaultName
     postgresConnectionString: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresql.outputs.serverFqdn}:5432/${postgresql.outputs.databaseName}?sslmode=require'
     redisConnectionString: redis.outputs.connectionString
     storageConnectionString: storage.outputs.connectionString
@@ -331,18 +287,10 @@ module keyVaultSecrets '../modules/keyvault-secrets.bicep' = {
     openAIEndpoint: openai.outputs.endpoint
     openAIDeploymentName: openai.outputs.gpt4DeploymentName
   }
-  dependsOn: [
-    keyVault
-    postgresql
-    redis
-    storage
-    openai
-  ]
 }
 
 // App Service Module
 module appService '../modules/app-service.bicep' = {
-  scope: resourceGroup
   name: 'deploy-app-service'
   params: {
     location: location
@@ -353,52 +301,55 @@ module appService '../modules/app-service.bicep' = {
     applicationInsightsConnectionString: monitoring.outputs.connectionString
     appSettings: union({
       // Key Vault references for sensitive data
-      DATABASE_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=database-url)'
-      REDIS_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=redis-url)'
-      AZURE_STORAGE_CONNECTION_STRING: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=storage-connection-string)'
-      AZURE_OPENAI_API_KEY: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=openai-api-key)'
-      AZURE_OPENAI_ENDPOINT: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=openai-endpoint)'
-      AZURE_OPENAI_DEPLOYMENT_NAME: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.vaultName};SecretName=openai-deployment-name)'
+      DATABASE_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=database-url)'
+      REDIS_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=redis-url)'
+      AZURE_STORAGE_CONNECTION_STRING: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=storage-connection-string)'
+      AZURE_OPENAI_API_KEY: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-api-key)'
+      AZURE_OPENAI_ENDPOINT: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-endpoint)'
+      AZURE_OPENAI_DEPLOYMENT_NAME: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-deployment-name)'
       // Non-sensitive configuration
       AZURE_STORAGE_ACCOUNT_NAME: storage.outputs.storageAccountName
       KEY_VAULT_URI: keyVault.outputs.vaultUri
       NODE_ENV: environmentId == 'prod' ? 'production' : 'development'
     }, additionalAppSettings)
-    logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
+    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     enableDiagnostics: true
   }
-  dependsOn: [
-    monitoring
-    keyVaultSecrets
-    keyVaultSecretsUserRole
-  ]
 }
+
+// ============================================================================
+// Role Assignments - Grant App Service Access to Azure Resources
+// ============================================================================
+// Note: Role assignments are deployed at resource group scope
+// GUID names use compile-time values to ensure deterministic deployment
+// ============================================================================
 
 // Grant App Service access to Key Vault (Key Vault Secrets User role)
 resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup.id, appService.outputs.principalId, '4633458b-17de-408a-b874-0445c86b69e6')
-  scope: resourceGroup
+  name: guid(resourceGroup().id, names.keyVault, names.appService, '4633458b-17de-408a-b874-0445c86b69e6')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
     principalId: appService.outputs.principalId
     principalType: 'ServicePrincipal'
+    description: 'Allow App Service to read secrets from Key Vault'
   }
 }
 
 // Grant App Service access to Storage (Storage Blob Data Contributor role)
 resource storageBlobContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup.id, appService.outputs.principalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
-  scope: resourceGroup
+  name: guid(resourceGroup().id, replace(names.storage, '-', ''), names.appService, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
     principalId: appService.outputs.principalId
     principalType: 'ServicePrincipal'
+    description: 'Allow App Service to read/write blobs in Storage Account'
   }
 }
 
-// Monitoring Alerts Module (if enabled and email addresses provided)
+// ============================================================================
+// Monitoring Alerts
+// ============================================================================
 module alerts '../modules/alerts.bicep' = if (enableAlerts && length(alertEmailAddresses) > 0) {
-  scope: resourceGroup
   name: 'deploy-alerts'
   params: {
     location: 'global'
@@ -412,17 +363,14 @@ module alerts '../modules/alerts.bicep' = if (enableAlerts && length(alertEmailA
     applicationInsightsId: monitoring.outputs.applicationInsightsId
     environmentId: environmentId
   }
-  dependsOn: [
-    appService
-    postgresql
-    redis
-    monitoring
-  ]
 }
 
+// ============================================================================
 // Outputs
+// ============================================================================
+
 @description('The name of the resource group.')
-output resourceGroupName string = resourceGroup.name
+output resourceGroupName string = resourceGroup().name
 
 @description('The App Service URL.')
 output appServiceUrl string = appService.outputs.appServiceUrl

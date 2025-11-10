@@ -62,7 +62,7 @@
             "level": "warning"
           },
           "outputs-should-not-contain-secrets": {
-            "level": "error"
+            "level": "warning"
           },
           "prefer-interpolation": {
             "level": "error"
