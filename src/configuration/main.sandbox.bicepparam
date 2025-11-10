@@ -53,8 +53,12 @@ param enablePrivateEndpoints = false
 // ============================================================================
 
 param postgresAdminUsername = 'psqladmin'
-// Note: postgresAdminPassword should be provided at deployment time
-// Example: --parameters postgresAdminPassword="DevPassword123!"
+
+// PostgreSQL Admin Password
+// SECURITY: This placeholder will be overridden at deployment time via CLI
+// Deploy with: ./scripts/deploy.sh -e sandbox -p "YourSecurePassword123!"
+// The actual password should NEVER be committed to source control
+param postgresAdminPassword = 'PLACEHOLDER-WILL-BE-OVERRIDDEN-AT-DEPLOYMENT'
 
 // PostgreSQL Specific Settings (if needed - requires module parameter support)
 // - SKU: B_Standard_B1ms (Burstable, 1 vCore, 2GB RAM) - ~$13/month

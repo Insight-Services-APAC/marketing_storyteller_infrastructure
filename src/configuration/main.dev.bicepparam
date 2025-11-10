@@ -26,8 +26,12 @@ param tags = {
 
 // PostgreSQL
 param postgresAdminUsername = 'psqladmin'
-// Note: postgresAdminPassword should be provided at deployment time or from Key Vault
-// For example: --parameters postgresAdminPassword="YourSecurePassword123!"
+
+// PostgreSQL Admin Password
+// SECURITY: This placeholder will be overridden at deployment time via CLI
+// Deploy with: ./scripts/deploy.sh -e dev -p "YourSecurePassword123!"
+// The actual password should NEVER be committed to source control
+param postgresAdminPassword = 'PLACEHOLDER-WILL-BE-OVERRIDDEN-AT-DEPLOYMENT'
 
 // Additional App Settings (optional)
 param additionalAppSettings = {
