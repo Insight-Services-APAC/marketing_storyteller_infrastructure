@@ -11,6 +11,7 @@ param location string = 'australiaeast'
 
 @description('Required. Environment ID.')
 @allowed([
+  'sandbox'
   'dev'
   'prod'
 ])
