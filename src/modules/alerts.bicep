@@ -35,6 +35,7 @@ param applicationInsightsId string
 
 @description('Optional. Environment ID for conditional alert configuration.')
 @allowed([
+  'sandbox'
   'dev'
   'prod'
 ])
