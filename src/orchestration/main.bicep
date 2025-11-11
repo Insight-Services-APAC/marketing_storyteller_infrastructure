@@ -81,7 +81,7 @@ var locationAbbr = 'aue' // Australia East
 // Environment-specific configurations
 var envConfig = {
   sandbox: {
-    appServiceSku: 'B1'
+    appServiceSku: 'S1'  // Basic tier not allowed, S1 is cheapest Standard tier
     postgresqlSku: 'Standard_B1ms'
     postgresqlTier: 'Burstable'
     postgresqlBackupRetention: 7
