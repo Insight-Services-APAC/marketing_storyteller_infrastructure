@@ -150,6 +150,82 @@ fi
 
 print_info "Starting deployment for environment: $ENVIRONMENT"
 
+# ============================================================================
+# Azure OpenAI Configuration Check
+# ============================================================================
+echo ""
+print_info "Checking for existing Azure OpenAI services..."
+echo ""
+
+# Search for existing OpenAI services in subscription
+OPENAI_SERVICES=$(az cognitiveservices account list --query "[?kind=='OpenAI'].{name:name, resourceGroup:resourceGroup, location:location}" -o json 2>/dev/null)
+
+if [ -n "$OPENAI_SERVICES" ] && [ "$OPENAI_SERVICES" != "[]" ]; then
+    SERVICE_COUNT=$(echo "$OPENAI_SERVICES" | jq '. | length')
+    
+    if [ "$SERVICE_COUNT" -gt 0 ]; then
+        print_info "Found $SERVICE_COUNT existing Azure OpenAI service(s) in your subscription:"
+        echo ""
+        echo "$OPENAI_SERVICES" | jq -r '.[] | "  • \(.name) (in \(.resourceGroup), \(.location))"'
+        echo ""
+        print_info "Azure OpenAI has strict quota limits. You can:"
+        echo "  1) Use an existing OpenAI service (recommended - share quota)"
+        echo "  2) Create a new OpenAI service (requires quota available)"
+        echo ""
+        read -p "Would you like to use an existing OpenAI service? (y/n): " use_existing_openai
+        
+        if [[ "$use_existing_openai" =~ ^[Yy]$ ]]; then
+            # List services with numbers
+            echo ""
+            print_info "Available OpenAI services:"
+            echo "$OPENAI_SERVICES" | jq -r 'to_entries[] | "\(.key + 1)) \(.value.name) - \(.value.resourceGroup)"'
+            echo ""
+            read -p "Select service number (or press Enter to create new): " service_number
+            
+            if [ -n "$service_number" ] && [ "$service_number" -gt 0 ] && [ "$service_number" -le "$SERVICE_COUNT" ]; then
+                SELECTED_OPENAI=$(echo "$OPENAI_SERVICES" | jq -r ".[$((service_number - 1))]")
+                OPENAI_NAME=$(echo "$SELECTED_OPENAI" | jq -r '.name')
+                OPENAI_RG=$(echo "$SELECTED_OPENAI" | jq -r '.resourceGroup')
+                
+                print_info "Selected: $OPENAI_NAME in $OPENAI_RG"
+                
+                # Check for GPT-4 deployment
+                print_info "Checking for GPT-4 deployments..."
+                GPT4_DEPLOYMENTS=$(az cognitiveservices account deployment list \
+                    --name "$OPENAI_NAME" \
+                    --resource-group "$OPENAI_RG" \
+                    --query "[?properties.model.name=='gpt-4' || properties.model.name=='gpt-4-turbo'].name" \
+                    -o tsv 2>/dev/null)
+                
+                if [ -n "$GPT4_DEPLOYMENTS" ]; then
+                    print_info "Found GPT-4 deployment(s): $GPT4_DEPLOYMENTS"
+                    GPT4_DEPLOYMENT_NAME=$(echo "$GPT4_DEPLOYMENTS" | head -n1)
+                    print_info "Will use: $GPT4_DEPLOYMENT_NAME"
+                    
+                    # Set parameters to use existing OpenAI
+                    OPENAI_PARAMS="useExistingOpenAI=true existingOpenAIName=$OPENAI_NAME existingOpenAIResourceGroup=$OPENAI_RG existingGPT4DeploymentName=$GPT4_DEPLOYMENT_NAME"
+                else
+                    print_warning "No GPT-4 deployment found in this service"
+                    print_warning "The deployment will create a new OpenAI service instead"
+                    OPENAI_PARAMS=""
+                fi
+            else
+                print_info "Creating new OpenAI service"
+                OPENAI_PARAMS=""
+            fi
+        else
+            print_info "Creating new OpenAI service"
+            OPENAI_PARAMS=""
+        fi
+    else
+        print_info "No existing OpenAI services found - will create new"
+        OPENAI_PARAMS=""
+    fi
+else
+    print_info "No existing OpenAI services found - will create new"
+    OPENAI_PARAMS=""
+fi
+
 # Login check
 print_info "Checking Azure login status..."
 if ! az account show &> /dev/null; then
@@ -259,12 +335,18 @@ fi
 print_info "Deploying infrastructure to resource group: $RESOURCE_GROUP_NAME"
 print_warning "This may take 15-30 minutes..."
 
+# Build parameters command
+DEPLOY_PARAMS="postgresAdminPassword=$POSTGRES_PASSWORD"
+if [ -n "$OPENAI_PARAMS" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS $OPENAI_PARAMS"
+fi
+
 az deployment group create \
     --name "$DEPLOYMENT_NAME" \
     --resource-group "$RESOURCE_GROUP_NAME" \
     --template-file src/orchestration/main.bicep \
     --parameters src/configuration/main.${ENVIRONMENT}.bicepparam \
-    --parameters postgresAdminPassword="$POSTGRES_PASSWORD" \
+    --parameters $DEPLOY_PARAMS \
     --verbose
 
 if [ $? -eq 0 ]; then

@@ -127,13 +127,16 @@ var envConfig = {
 var config = envConfig[environmentId]
 
 // Resource names
+// Note: Storage (24 char max) and KeyVault (24 char max) use abbreviated names
+// Environment abbreviations: sandbox=sbx, dev=dev, prod=prd
+var envAbbr = environmentId == 'sandbox' ? 'sbx' : (environmentId == 'prod' ? 'prd' : environmentId)
 var names = {
   logAnalytics: 'law-${appNamePrefix}-${environmentId}-${locationAbbr}'
   appInsights: 'appi-${appNamePrefix}-${environmentId}-${locationAbbr}'
-  storage: 'st${appNamePrefix}${environmentId}${locationAbbr}'
+  storage: 'stmktstory${envAbbr}${locationAbbr}'  // stmktstorysbxaue = 19 chars ✓
   redis: 'redis-${appNamePrefix}-${environmentId}-${locationAbbr}'
   openai: 'oai-${appNamePrefix}-${environmentId}-${locationAbbr}'
-  keyVault: 'kv-${appNamePrefix}-${environmentId}-${locationAbbr}'
+  keyVault: 'kv-mktstory-${envAbbr}-${locationAbbr}'  // kv-mktstory-sbx-aue = 21 chars ✓
   postgresql: 'psql-${appNamePrefix}-${environmentId}-${locationAbbr}'
   appServicePlan: 'asp-${appNamePrefix}-${environmentId}-${locationAbbr}'
   appService: 'app-${appNamePrefix}-${environmentId}-${locationAbbr}'

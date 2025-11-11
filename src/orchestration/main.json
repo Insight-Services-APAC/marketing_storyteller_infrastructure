@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "8659507876725914265"
+      "templateHash": "16622940504937530890"
     },
     "name": "Marketing Storyteller - Infrastructure Deployment",
     "description": "Deploy Marketing Storyteller infrastructure to Azure",
@@ -23,6 +23,7 @@
     "environmentId": {
       "type": "string",
       "allowedValues": [
+        "sandbox",
         "dev",
         "prod"
       ],
@@ -141,6 +142,20 @@
   "variables": {
     "locationAbbr": "aue",
     "envConfig": {
+      "sandbox": {
+        "appServiceSku": "B1",
+        "postgresqlSku": "Standard_B1ms",
+        "postgresqlTier": "Burstable",
+        "postgresqlBackupRetention": 7,
+        "postgresqlGeoRedundantBackup": "Disabled",
+        "postgresqlHighAvailability": "Disabled",
+        "storageSku": "Standard_LRS",
+        "redisSku": "Basic",
+        "redisFamily": "C",
+        "redisCapacity": 0,
+        "gpt4Capacity": 10,
+        "logRetentionDays": 30
+      },
       "dev": {
         "appServiceSku": "P1V3",
         "postgresqlSku": "Standard_B1ms",
@@ -3305,7 +3320,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "315431731353873228"
+              "templateHash": "9104474437189487068"
             },
             "name": "Marketing Storyteller - Alerts Module",
             "description": "Deploy monitoring alerts for critical resources",
@@ -3374,6 +3389,7 @@
               "type": "string",
               "defaultValue": "dev",
               "allowedValues": [
+                "sandbox",
                 "dev",
                 "prod"
               ],

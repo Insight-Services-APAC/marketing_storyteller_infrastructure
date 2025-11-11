@@ -135,21 +135,21 @@ param additionalAppSettings = {
 // - Purge protection: Disabled (allows full delete)
 
 // ============================================================================
-// AZURE OPENAI - Use Existing (Recommended for Sandbox)
+// AZURE OPENAI - Create New for Sandbox
 // ============================================================================
-// Reuse existing OpenAI service to save cost and quota
+// Creates a dedicated OpenAI service for this sandbox environment
+// Note: Requires OpenAI quota in your subscription
 // ============================================================================
 
-// Option 1: Use existing OpenAI service (RECOMMENDED for sandbox)
+// Option 1: Use existing OpenAI service (if you have one to share)
 // Uncomment these lines if you have an existing AI Foundry/OpenAI service
-param useExistingOpenAI = true
-param existingOpenAIName = 'oai-shared-dev-aue'
-param existingOpenAIResourceGroup = 'rg-shared-ai-dev-aue'
-param existingGPT4DeploymentName = 'gpt-4'
+// param useExistingOpenAI = true
+// param existingOpenAIName = 'oai-shared-dev-aue'
+// param existingOpenAIResourceGroup = 'rg-shared-ai-dev-aue'
+// param existingGPT4DeploymentName = 'gpt-4'
 
-// Option 2: Create new OpenAI service (NOT RECOMMENDED - quota limits)
-// Uncomment if you need a dedicated instance (adds ~$0/month base + usage)
-// param useExistingOpenAI = false
+// Option 2: Create new OpenAI service (DEFAULT for sandbox)
+param useExistingOpenAI = false
 
 // ============================================================================
 // MONITORING - Minimal Configuration
