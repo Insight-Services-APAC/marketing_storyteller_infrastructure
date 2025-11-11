@@ -154,22 +154,23 @@ print_info "Starting deployment for environment: $ENVIRONMENT"
 # Azure OpenAI Configuration Check
 # ============================================================================
 echo ""
-print_info "Checking for existing Azure OpenAI services..."
+print_info "Checking for existing Azure OpenAI and AI Foundry services..."
 echo ""
 
 # Search for existing OpenAI services in subscription
-OPENAI_SERVICES=$(az cognitiveservices account list --query "[?kind=='OpenAI'].{name:name, resourceGroup:resourceGroup, location:location}" -o json 2>/dev/null)
+# Includes both standalone OpenAI and AI Foundry (AIServices) which includes OpenAI
+OPENAI_SERVICES=$(az cognitiveservices account list --query "[?kind=='OpenAI' || kind=='AIServices'].{name:name, resourceGroup:resourceGroup, location:location, kind:kind}" -o json 2>/dev/null)
 
 if [ -n "$OPENAI_SERVICES" ] && [ "$OPENAI_SERVICES" != "[]" ]; then
     SERVICE_COUNT=$(echo "$OPENAI_SERVICES" | jq '. | length')
     
     if [ "$SERVICE_COUNT" -gt 0 ]; then
-        print_info "Found $SERVICE_COUNT existing Azure OpenAI service(s) in your subscription:"
+        print_info "Found $SERVICE_COUNT Azure OpenAI/AI Foundry service(s) in your subscription:"
         echo ""
-        echo "$OPENAI_SERVICES" | jq -r '.[] | "  • \(.name) (in \(.resourceGroup), \(.location))"'
+        echo "$OPENAI_SERVICES" | jq -r '.[] | "  • \(.name) [\(.kind)] - \(.resourceGroup), \(.location)"'
         echo ""
         print_info "Azure OpenAI has strict quota limits. You can:"
-        echo "  1) Use an existing OpenAI service (recommended - share quota)"
+        echo "  1) Use an existing service (recommended - share quota)"
         echo "  2) Create a new OpenAI service (requires quota available)"
         echo ""
         read -p "Would you like to use an existing OpenAI service? (y/n): " use_existing_openai
