@@ -178,8 +178,8 @@ if [ -n "$OPENAI_SERVICES" ] && [ "$OPENAI_SERVICES" != "[]" ]; then
         if [[ "$use_existing_openai" =~ ^[Yy]$ ]]; then
             # List services with numbers
             echo ""
-            print_info "Available OpenAI services:"
-            echo "$OPENAI_SERVICES" | jq -r 'to_entries[] | "\(.key + 1)) \(.value.name) - \(.value.resourceGroup)"'
+            print_info "Available OpenAI/AI Foundry services:"
+            echo "$OPENAI_SERVICES" | jq -r 'to_entries[] | "\(.key + 1)) \(.value.name) - \(.value.resourceGroup) [\(.value.kind)]"'
             echo ""
             read -p "Select service number (or press Enter to create new): " service_number
             
@@ -187,26 +187,69 @@ if [ -n "$OPENAI_SERVICES" ] && [ "$OPENAI_SERVICES" != "[]" ]; then
                 SELECTED_OPENAI=$(echo "$OPENAI_SERVICES" | jq -r ".[$((service_number - 1))]")
                 OPENAI_NAME=$(echo "$SELECTED_OPENAI" | jq -r '.name')
                 OPENAI_RG=$(echo "$SELECTED_OPENAI" | jq -r '.resourceGroup')
+                OPENAI_KIND=$(echo "$SELECTED_OPENAI" | jq -r '.kind')
                 
-                print_info "Selected: $OPENAI_NAME in $OPENAI_RG"
+                print_info "Selected: $OPENAI_NAME ($OPENAI_KIND) in $OPENAI_RG"
+                echo ""
                 
-                # Check for GPT-4 deployment
-                print_info "Checking for GPT-4 deployments..."
-                GPT4_DEPLOYMENTS=$(az cognitiveservices account deployment list \
+                # Check for model deployments
+                print_info "Checking for available model deployments..."
+                ALL_DEPLOYMENTS=$(az cognitiveservices account deployment list \
                     --name "$OPENAI_NAME" \
                     --resource-group "$OPENAI_RG" \
-                    --query "[?properties.model.name=='gpt-4' || properties.model.name=='gpt-4-turbo'].name" \
-                    -o tsv 2>/dev/null)
+                    --query "[].{name:name, model:properties.model.name, version:properties.model.version, capacity:sku.capacity}" \
+                    -o json 2>/dev/null)
                 
-                if [ -n "$GPT4_DEPLOYMENTS" ]; then
-                    print_info "Found GPT-4 deployment(s): $GPT4_DEPLOYMENTS"
-                    GPT4_DEPLOYMENT_NAME=$(echo "$GPT4_DEPLOYMENTS" | head -n1)
-                    print_info "Will use: $GPT4_DEPLOYMENT_NAME"
+                if [ -n "$ALL_DEPLOYMENTS" ] && [ "$ALL_DEPLOYMENTS" != "[]" ]; then
+                    DEPLOYMENT_COUNT=$(echo "$ALL_DEPLOYMENTS" | jq '. | length')
+                    print_info "Found $DEPLOYMENT_COUNT model deployment(s):"
+                    echo ""
+                    echo "$ALL_DEPLOYMENTS" | jq -r '.[] | "  • \(.name): \(.model) (v\(.version), \(.capacity)K TPM)"'
+                    echo ""
+                    
+                    # Check for gpt-5-mini (preferred for this application)
+                    GPT5_MINI=$(echo "$ALL_DEPLOYMENTS" | jq -r '.[] | select(.model | contains("gpt-5-mini")) | .name' | head -n1)
+                    
+                    if [ -n "$GPT5_MINI" ]; then
+                        print_info "✓ Found GPT-5 Mini deployment: $GPT5_MINI (recommended for this app)"
+                        SELECTED_DEPLOYMENT="$GPT5_MINI"
+                    else
+                        # Check for other compatible models
+                        GPT5=$(echo "$ALL_DEPLOYMENTS" | jq -r '.[] | select(.model | contains("gpt-5")) | .name' | head -n1)
+                        GPT4O=$(echo "$ALL_DEPLOYMENTS" | jq -r '.[] | select(.model | contains("gpt-4o")) | .name' | head -n1)
+                        GPT4=$(echo "$ALL_DEPLOYMENTS" | jq -r '.[] | select(.model | contains("gpt-4")) | .name' | head -n1)
+                        
+                        if [ -n "$GPT5" ]; then
+                            print_info "Found GPT-5 deployment: $GPT5"
+                            SELECTED_DEPLOYMENT="$GPT5"
+                        elif [ -n "$GPT4O" ]; then
+                            print_info "Found GPT-4o deployment: $GPT4O"
+                            SELECTED_DEPLOYMENT="$GPT4O"
+                        elif [ -n "$GPT4" ]; then
+                            print_info "Found GPT-4 deployment: $GPT4"
+                            SELECTED_DEPLOYMENT="$GPT4"
+                        else
+                            SELECTED_DEPLOYMENT=$(echo "$ALL_DEPLOYMENTS" | jq -r '.[0].name')
+                            print_info "Using first available deployment: $SELECTED_DEPLOYMENT"
+                        fi
+                    fi
+                    
+                    echo ""
+                    print_info "Default selection: $SELECTED_DEPLOYMENT"
+                    read -p "Use this deployment? (y/n, or enter different deployment name): " deployment_choice
+                    
+                    if [[ "$deployment_choice" =~ ^[Nn]$ ]]; then
+                        read -p "Enter deployment name to use: " SELECTED_DEPLOYMENT
+                    elif [ -n "$deployment_choice" ] && [[ ! "$deployment_choice" =~ ^[Yy]$ ]]; then
+                        SELECTED_DEPLOYMENT="$deployment_choice"
+                    fi
+                    
+                    print_info "Will use model deployment: $SELECTED_DEPLOYMENT"
                     
                     # Set parameters to use existing OpenAI
-                    OPENAI_PARAMS="useExistingOpenAI=true existingOpenAIName=$OPENAI_NAME existingOpenAIResourceGroup=$OPENAI_RG existingGPT4DeploymentName=$GPT4_DEPLOYMENT_NAME"
+                    OPENAI_PARAMS="useExistingOpenAI=true existingOpenAIName=$OPENAI_NAME existingOpenAIResourceGroup=$OPENAI_RG existingGPT4DeploymentName=$SELECTED_DEPLOYMENT"
                 else
-                    print_warning "No GPT-4 deployment found in this service"
+                    print_warning "No model deployments found in this service"
                     print_warning "The deployment will create a new OpenAI service instead"
                     OPENAI_PARAMS=""
                 fi

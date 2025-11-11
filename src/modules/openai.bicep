@@ -1,7 +1,7 @@
 targetScope = 'resourceGroup'
 
 metadata name = 'Marketing Storyteller - Azure OpenAI Module'
-metadata description = 'Deploy or reference existing Azure OpenAI Service with GPT-4 deployment'
+metadata description = 'Deploy or reference existing Azure OpenAI Service with GPT-5 Mini deployment'
 metadata version = '1.0.0'
 metadata author = 'Insight Services APAC'
 
@@ -40,16 +40,19 @@ param sku string = 'S0'
 ])
 param publicNetworkAccess string = 'Enabled'
 
-@description('Optional. Deploy GPT-4 model (only applies when creating new OpenAI service).')
+@description('Optional. Deploy GPT-5 model (only applies when creating new OpenAI service).')
 param deployGPT4 bool = true
 
-@description('Optional. GPT-4 deployment name.')
-param gpt4DeploymentName string = 'gpt-4'
+@description('Optional. Model deployment name.')
+param gpt4DeploymentName string = 'gpt-5-mini'
 
-@description('Optional. GPT-4 model version.')
-param gpt4ModelVersion string = 'turbo-2024-04-09'
+@description('Optional. Model name to deploy.')
+param gpt4ModelName string = 'gpt-5-mini'
 
-@description('Optional. GPT-4 capacity (tokens per minute in thousands).')
+@description('Optional. Model version.')
+param gpt4ModelVersion string = '2024-11-01'
+
+@description('Optional. Model capacity (tokens per minute in thousands).')
 @minValue(1)
 @maxValue(100)
 param gpt4Capacity int = 10
@@ -78,7 +81,7 @@ resource openAI 'Microsoft.CognitiveServices/accounts@2024-10-01' = if (!useExis
   }
 }
 
-// GPT-4 Deployment (only when creating new OpenAI)
+// Model Deployment (GPT-5 Mini by default)
 resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (!useExistingOpenAI && deployGPT4) {
   parent: openAI
   name: gpt4DeploymentName
@@ -89,7 +92,7 @@ resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-1
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4'
+      name: gpt4ModelName
       version: gpt4ModelVersion
     }
     versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
