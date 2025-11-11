@@ -321,7 +321,7 @@ module appService '../modules/app-service.bicep' = {
       // Key Vault references for sensitive data
       DATABASE_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=database-url)'
       REDIS_URL: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=redis-url)'
-      AZURE_STORAGE_CONNECTION_STRING: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=storage-connection-string)'
+      STORAGE_CONNECTION_STRING: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=storage-connection-string)'
       AZURE_OPENAI_API_KEY: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-api-key)'
       AZURE_OPENAI_ENDPOINT: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-endpoint)'
       AZURE_OPENAI_DEPLOYMENT_NAME: '@Microsoft.KeyVault(VaultName=${keyVault.outputs.keyVaultName};SecretName=openai-deployment-name)'
