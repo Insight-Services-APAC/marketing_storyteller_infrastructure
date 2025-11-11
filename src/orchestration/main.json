@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "16622940504937530890"
+      "templateHash": "969352845127695528"
     },
     "name": "Marketing Storyteller - Infrastructure Deployment",
     "description": "Deploy Marketing Storyteller infrastructure to Azure",
@@ -143,7 +143,7 @@
     "locationAbbr": "aue",
     "envConfig": {
       "sandbox": {
-        "appServiceSku": "B1",
+        "appServiceSku": "S1",
         "postgresqlSku": "Standard_B1ms",
         "postgresqlTier": "Burstable",
         "postgresqlBackupRetention": 7,
@@ -186,13 +186,14 @@
       }
     },
     "config": "[variables('envConfig')[parameters('environmentId')]]",
+    "envAbbr": "[if(equals(parameters('environmentId'), 'sandbox'), 'sbx', if(equals(parameters('environmentId'), 'prod'), 'prd', parameters('environmentId')))]",
     "names": {
       "logAnalytics": "[format('law-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
       "appInsights": "[format('appi-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
-      "storage": "[format('st{0}{1}{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "storage": "[format('stmktstory{0}{1}', variables('envAbbr'), variables('locationAbbr'))]",
       "redis": "[format('redis-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
       "openai": "[format('oai-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
-      "keyVault": "[format('kv-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
+      "keyVault": "[format('kv-mktstory-{0}-{1}', variables('envAbbr'), variables('locationAbbr'))]",
       "postgresql": "[format('psql-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
       "appServicePlan": "[format('asp-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
       "appService": "[format('app-{0}-{1}-{2}', parameters('appNamePrefix'), parameters('environmentId'), variables('locationAbbr'))]",
@@ -1773,10 +1774,10 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "7177559901906602926"
+              "templateHash": "8362454251930834827"
             },
             "name": "Marketing Storyteller - Azure OpenAI Module",
-            "description": "Deploy or reference existing Azure OpenAI Service with GPT-4 deployment",
+            "description": "Deploy or reference existing Azure OpenAI Service with GPT-5 Mini deployment",
             "version": "1.0.0",
             "author": "Insight Services APAC"
           },
@@ -1854,21 +1855,28 @@
               "type": "bool",
               "defaultValue": true,
               "metadata": {
-                "description": "Optional. Deploy GPT-4 model (only applies when creating new OpenAI service)."
+                "description": "Optional. Deploy GPT-5 model (only applies when creating new OpenAI service)."
               }
             },
             "gpt4DeploymentName": {
               "type": "string",
-              "defaultValue": "gpt-4",
+              "defaultValue": "gpt-5-mini",
               "metadata": {
-                "description": "Optional. GPT-4 deployment name."
+                "description": "Optional. Model deployment name."
+              }
+            },
+            "gpt4ModelName": {
+              "type": "string",
+              "defaultValue": "gpt-5-mini",
+              "metadata": {
+                "description": "Optional. Model name to deploy."
               }
             },
             "gpt4ModelVersion": {
               "type": "string",
-              "defaultValue": "turbo-2024-04-09",
+              "defaultValue": "",
               "metadata": {
-                "description": "Optional. GPT-4 model version."
+                "description": "Optional. Model version. Leave empty to use latest available version."
               }
             },
             "gpt4Capacity": {
@@ -1877,7 +1885,7 @@
               "minValue": 1,
               "maxValue": 100,
               "metadata": {
-                "description": "Optional. GPT-4 capacity (tokens per minute in thousands)."
+                "description": "Optional. Model capacity (tokens per minute in thousands)."
               }
             }
           },
@@ -1913,8 +1921,8 @@
               "properties": {
                 "model": {
                   "format": "OpenAI",
-                  "name": "gpt-4",
-                  "version": "[parameters('gpt4ModelVersion')]"
+                  "name": "[parameters('gpt4ModelName')]",
+                  "version": "[if(not(empty(parameters('gpt4ModelVersion'))), parameters('gpt4ModelVersion'), null())]"
                 },
                 "versionUpgradeOption": "OnceNewDefaultVersionAvailable",
                 "raiPolicyName": "Microsoft.Default"
@@ -2953,7 +2961,7 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.connectionString.value]"
           },
           "appSettings": {
-            "value": "[union(createObject('DATABASE_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=database-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'REDIS_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=redis-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_STORAGE_CONNECTION_STRING', format('@Microsoft.KeyVault(VaultName={0};SecretName=storage-connection-string)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_API_KEY', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-api-key)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_ENDPOINT', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-endpoint)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_DEPLOYMENT_NAME', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-deployment-name)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_STORAGE_ACCOUNT_NAME', reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value, 'KEY_VAULT_URI', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.vaultUri.value, 'NODE_ENV', if(equals(parameters('environmentId'), 'prod'), 'production', 'development')), parameters('additionalAppSettings'))]"
+            "value": "[union(createObject('DATABASE_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=database-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'REDIS_URL', format('@Microsoft.KeyVault(VaultName={0};SecretName=redis-url)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'STORAGE_CONNECTION_STRING', format('@Microsoft.KeyVault(VaultName={0};SecretName=storage-connection-string)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_API_KEY', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-api-key)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_ENDPOINT', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-endpoint)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_OPENAI_DEPLOYMENT_NAME', format('@Microsoft.KeyVault(VaultName={0};SecretName=openai-deployment-name)', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value), 'AZURE_STORAGE_ACCOUNT_NAME', reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value, 'KEY_VAULT_URI', reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.vaultUri.value, 'NODE_ENV', if(equals(parameters('environmentId'), 'prod'), 'production', 'development')), parameters('additionalAppSettings'))]"
           },
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"

@@ -103,23 +103,20 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
       detailedErrorLoggingEnabled: detailedErrorLoggingEnabled
       httpLoggingEnabled: httpLoggingEnabled
       requestTracingEnabled: requestTracingEnabled
-      appSettings: union([
-        {
-          name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '~${nodeVersion}'
-        }
-        {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: applicationInsightsConnectionString
-        }
-      ], items(appSettings))
     }
     publicNetworkAccess: 'Enabled'
   }
+}
+
+// App Settings as separate resource to avoid validation issues
+resource appServiceSettings 'Microsoft.Web/sites/config@2023-12-01' = {
+  parent: appService
+  name: 'appsettings'
+  properties: union({
+    WEBSITE_NODE_DEFAULT_VERSION: '~${nodeVersion}'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsightsConnectionString
+  }, appSettings)
 }
 
 // Diagnostic Settings for App Service
