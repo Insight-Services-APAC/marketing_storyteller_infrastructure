@@ -49,8 +49,8 @@ param gpt4DeploymentName string = 'gpt-5-mini'
 @description('Optional. Model name to deploy.')
 param gpt4ModelName string = 'gpt-5-mini'
 
-@description('Optional. Model version.')
-param gpt4ModelVersion string = '2024-11-01'
+@description('Optional. Model version. Leave empty to use latest available version.')
+param gpt4ModelVersion string = ''
 
 @description('Optional. Model capacity (tokens per minute in thousands).')
 @minValue(1)
@@ -93,7 +93,7 @@ resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-1
     model: {
       format: 'OpenAI'
       name: gpt4ModelName
-      version: gpt4ModelVersion
+      version: !empty(gpt4ModelVersion) ? gpt4ModelVersion : null
     }
     versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
     raiPolicyName: 'Microsoft.Default'
